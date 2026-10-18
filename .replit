@@ -34,4 +34,3 @@ externalPort = 80
 [userenv]
 
 [userenv.shared]
-MONGODB_URI = "mongodb+srv://str:YIy!PLwz35Gvp_h@cluster0.tfdzwm1.mongodb.net/"
