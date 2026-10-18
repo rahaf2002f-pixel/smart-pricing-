@@ -1,28 +1,36 @@
-# Imported Arabic pricing dashboard
+# Smart Pricing AI — MERN MVP
 
 ## Run
 
-Use the **Start application** workflow, or run `python3 server.py`.
-The server listens on `0.0.0.0:5000` and uses only Python's standard library.
-No packages, secrets, or external accounts are required.
+Run `npm run dev` (or use the **Start application** workflow) to start the
+Vite + React client and Express API on port 5000.
+Run `npm test` for the pricing calculation checks and `npm run build` to build
+the frontend.
 
-## Pages
+## MVP features
 
-- `/`: original landing page (`_1/code.html`)
-- `/simulator`: original pricing calculator (`_2/code.html`)
-- `/calculator`: original detailed calculator (`_3/code.html`)
-- `/product-catalog`: original product catalog mockup (`_4/code.html`)
+- Enter product purchase, packaging, delivery, and payment costs.
+- Calculate total cost, target-margin selling price, expected profit, and margin.
+- Change a comparison selling price and see its estimated profit and margin.
+- Keep the current anonymous calculation in MongoDB and restore it in the same
+  browser after a refresh. There is no account or calculation-history UI.
 
-The “الصفحات المستوردة” menu at the bottom-left links to all four pages.
-The original `/_1/code.html` through `/_4/code.html` URLs also work.
+## MongoDB configuration
 
-## Scope and limitations
+Set `MONGODB_URI` in Replit Secrets before expecting persistent storage. For local
+development, copy `.env.example` to `.env` and set the Atlas connection URI there.
+Never commit `.env`; the project ignores it. `GET /api/health` reports whether
+MongoDB is connected. Without a URI, calculations still work in the browser, but
+saving/restoring them is unavailable.
 
-The imported HTML, screenshots, and `calculated_mint/DESIGN.md` are preserved.
-The server adds page titles, navigation, and connects existing simulator/catalog
-links when serving HTML. It serves only the four known pages, not workspace files.
+## API
 
-These are imported demos, not a complete store-management application.
-Existing calculator scripts run in the browser; catalog actions, unsupported
-sidebar sections, export, and permanent saving have not been implemented.
-Google Fonts, Material Symbols, and the Tailwind CDN require internet access.
+- `GET /api/health`
+- `GET /api/pricing/calculations/:sessionId`
+- `PUT /api/pricing/calculations/:sessionId`
+
+## Imported reference files
+
+The original HTML pages, screenshots, `calculated_mint/DESIGN.md`, and
+`server.py` remain untouched as reference material. The active application
+workflow now uses the MERN MVP.
