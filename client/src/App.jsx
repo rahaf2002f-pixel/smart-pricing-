@@ -36,17 +36,31 @@ const FIELDS = [
   { key: "paymentFee", label: "رسوم الدفع الإلكتروني", number: "04", note: "للطلب" },
 ];
 
-const PRIMARY_NAV_ITEMS = [
-  { id: "start", label: "الرئيسية", icon: "home" },
-  { id: "calculator", label: "محاكي تسعير المنتجات", icon: "calculator" },
-  { id: "catalog", label: "كتالوج وهوامش التكلفة", icon: "package" },
-  { id: "market-comparison", label: "مؤشرات السوق الخليجي", icon: "chart", title: "مقارنة سعر البيع داخل الحاسبة، دون بيانات سوق خارجية" },
-  { id: "ai-advice", label: "توصيات الذكاء الاصطناعي", icon: "brain", accent: "orange" },
-];
-
-const SETTINGS_NAV_ITEMS = [
-  { id: "payment-settings", label: "رسوم الدفع وبوابات KNET", icon: "credit" },
-  { id: "store-settings", label: "إعدادات المتجر والعملات", icon: "settings" },
+const SIDEBAR_GROUPS = [
+  {
+    title: "الرئيسية",
+    items: [{ id: "start", label: "صفحة البداية", icon: "home" }],
+  },
+  {
+    title: "التسعير والتحليل",
+    items: [
+      { id: "calculator", label: "حاسبة تسعير المنتج", icon: "calculator" },
+      { id: "market-comparison", label: "مقارنة أسعار البيع", icon: "chart" },
+      { id: "details", label: "التسعير التفصيلي", icon: "edit" },
+      { id: "ai-advice", label: "اقتراحات الذكاء الاصطناعي", icon: "brain", accent: "orange" },
+    ],
+  },
+  {
+    title: "المنتجات",
+    items: [{ id: "catalog", label: "كتالوج المنتجات", icon: "package" }],
+  },
+  {
+    title: "إعدادات المتجر",
+    items: [
+      { id: "store-settings", label: "الرسوم الافتراضية", icon: "settings" },
+      { id: "payment-settings", label: "رسوم الدفع وKNET", icon: "credit" },
+    ],
+  },
 ];
 
 const EMPTY_PRODUCT = {
@@ -691,28 +705,21 @@ function App() {
 
       <aside className={`sp-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label="التنقل داخل التسعير الذكي">
         <div className="sp-sidebar-content">
-          <p className="sp-side-label">وحدات التحليل <i /></p>
-          <nav className="sp-side-nav" aria-label="وحدات التحليل">
-            {PRIMARY_NAV_ITEMS.map(({ id, label, icon, accent, title }) => {
-              const isActive = activeSection === id;
-              return (
-                <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}`} href={`#${id}`} title={title} aria-current={isActive ? "location" : undefined} onClick={() => setSidebarOpen(false)}>
-                  <Icon name={icon} /><span>{label}</span>
-                </a>
-              );
-            })}
-          </nav>
-          <p className="sp-side-group-label"><i /> إعدادات الحسبة</p>
-          <nav className="sp-side-nav" aria-label="إعدادات الحسبة">
-            {SETTINGS_NAV_ITEMS.map(({ id, label, icon }) => {
-              const isActive = activeSection === id;
-              return (
-                <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}`} href={`#${id}`} aria-current={isActive ? "location" : undefined} onClick={() => setSidebarOpen(false)}>
-                  <Icon name={icon} /><span>{label}</span>
-                </a>
-              );
-            })}
-          </nav>
+          {SIDEBAR_GROUPS.map(({ title, items }, groupIndex) => (
+            <section className="sp-sidebar-group" key={title} aria-labelledby={`sidebar-group-${groupIndex}`}>
+              <h2 className="sp-side-group-label" id={`sidebar-group-${groupIndex}`}><i />{title}</h2>
+              <nav className="sp-side-nav" aria-label={title}>
+                {items.map(({ id, label, icon, accent }) => {
+                  const isActive = activeSection === id;
+                  return (
+                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}`} href={`#${id}`} aria-current={isActive ? "location" : undefined} onClick={() => setSidebarOpen(false)}>
+                      <Icon name={icon} /><span>{label}</span>
+                    </a>
+                  );
+                })}
+              </nav>
+            </section>
+          ))}
         </div>
         <div className="sp-side-foot">
           <span className="sp-margin-icon"><Icon name="chart" /></span>
