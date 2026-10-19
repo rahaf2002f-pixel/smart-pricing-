@@ -377,10 +377,14 @@ function App() {
       if (frameId) return;
       frameId = window.requestAnimationFrame(() => {
         frameId = 0;
-        const current = sections.reduce(
-          (active, section) => section.getBoundingClientRect().top <= 180 ? section.id : active,
-          "start",
-        );
+        const activationLine = (document.querySelector(".sp-header")?.offsetHeight ?? 51) + 32;
+        const atPageBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+        const current = atPageBottom
+          ? "catalog"
+          : sections.reduce(
+            (active, section) => section.getBoundingClientRect().top <= activationLine ? section.id : active,
+            "start",
+          );
         setActiveSection(current);
       });
     };

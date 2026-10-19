@@ -1,0 +1,262 @@
+// Run against a development app with an isolated Chromium debugging session on 9225.
+// Uses only Node built-ins; creates/deletes only its own test product.
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+
+const pages = await (await fetch("http://127.0.0.1:9225/json/list")).json();
+const socket = new WebSocket(pages.find((page) => page.type === "page").webSocketDebuggerUrl);
+await new Promise((resolve) => socket.addEventListener("open", resolve, { once: true }));
+let nextId = 0;
+const pending = new Map();
+const exceptions = [];
+socket.addEventListener("message", ({ data }) => {
+  const message = JSON.parse(data);
+  if (message.method === "Runtime.exceptionThrown") exceptions.push(message.params.exceptionDetails.text);
+  const request = pending.get(message.id);
+  if (request) {
+    pending.delete(message.id);
+    message.error ? request.reject(new Error(message.error.message)) : request.resolve(message.result);
+  }
+});
+function send(method, params = {}) {
+  return new Promise((resolve, reject) => {
+    const id = ++nextId;
+    pending.set(id, { resolve, reject });
+    socket.send(JSON.stringify({ id, method, params }));
+  });
+}
+async function evaluate(expression) {
+  const result = await send("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text);
+  return result.result.value;
+}
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function waitFor(expression, timeout = 12000) {
+  const until = Date.now() + timeout;
+  while (Date.now() < until) {
+    if (await evaluate(`Boolean(${expression})`)) return;
+    await pause(100);
+  }
+  throw new Error(`Timed out: ${expression}`);
+}
+async function fill(selector, value) {
+  await evaluate(`(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element) throw new Error("Missing input: " + ${JSON.stringify(selector)});
+    const prototype = element.tagName === "SELECT" ? HTMLSelectElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, "value").set.call(element, ${JSON.stringify(String(value))});
+    element.dispatchEvent(new Event(element.tagName === "SELECT" ? "change" : "input", { bubbles: true }));
+  })()`);
+  await pause(70);
+}
+async function click(selector) {
+  await evaluate(`(() => {
+    const element = document.querySelector(${JSON.stringify(selector)});
+    if (!element || element.disabled) throw new Error("Missing or disabled button: " + ${JSON.stringify(selector)});
+    element.click();
+  })()`);
+  await pause(100);
+}
+const text = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText`);
+const value = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)})?.value`);
+const money = async (selector) => parseFloat((await text(selector)).replaceAll(",", ""));
+const near = (actual, expected) => assert(Math.abs(actual - expected) < 0.002, `${actual} != ${expected}`);
+const checks = [];
+async function check(name, task) {
+  if (process.env.VERIFY_ONLY && !name.includes(process.env.VERIFY_ONLY)) return;
+  try { await task(); checks.push({ name, pass: true }); console.log("PASS", name); }
+  catch (error) { checks.push({ name, pass: false, error: error.message }); console.log("FAIL", name, error.message); }
+}
+const name = `اختبار الخانات ${randomUUID().slice(0, 8)}`;
+let productId;
+await send("Page.enable");
+await send("Runtime.enable");
+await send("Emulation.setDeviceMetricsOverride", { width: 1024, height: 819, deviceScaleFactor: 1, mobile: false });
+await send("Page.navigate", { url: `https://${process.env.REPLIT_DEV_DOMAIN}/` });
+await waitFor(`document.querySelector(".connection-connected") && document.querySelector("#product-name")`);
+const session = await evaluate(`localStorage.getItem("smart-pricing-calculation-id")`);
+const api = async (path, options) => evaluate(`fetch(${JSON.stringify(path)}, ${JSON.stringify(options)}).then(async r => ({status:r.status, body:await r.json()}))`);
+const productsPath = `/api/pricing/products/${session}`;
+const getProducts = async () => (await api(productsPath)).body.products;
+try {
+  await check("All eight sidebar destinations and current-section indicators", async () => {
+    const ids = await evaluate(`[...document.querySelectorAll(".sp-sidebar .sp-side-link")].map(a => a.hash.slice(1))`);
+    assert.equal(ids.length, 8);
+    for (const id of ids) {
+      await click(`.sp-sidebar a[href="#${id}"]`);
+      await pause(850);
+      const position = await evaluate(`document.getElementById(${JSON.stringify(id)}).getBoundingClientRect().top`);
+      assert(position >= 45 && position <= 181, `${id} position ${position}`);
+      assert.equal(await evaluate(`document.querySelector(".sp-sidebar a[aria-current]")?.hash`), `#${id}`, `${id} at ${position}px`);
+    }
+  });
+  await check("Start button and fixed-fee calculator fields", async () => {
+    await click(".sp-primary-cta");
+    for (const [label, amount] of [["تكلفة شراء المنتج", 10], ["تكلفة التوصيل", 2], ["تكلفة التغليف", 1], ["رسوم الدفع الإلكتروني", 0.5]]) {
+      await fill(`#calculator input[aria-label="${label}"]`, amount);
+    }
+    await fill('select[aria-label="نوع رسوم الدفع في الحاسبة"]', "fixed");
+    await fill("#sp-margin-range", 50);
+    near(await money(".sp-price b"), 27);
+    near(await money(".sp-cost-total b"), 13.5);
+    near(await money(".sp-stat-profit b"), 13.5);
+  });
+  await check("Clearing, typing decimals, presets and negative amounts", async () => {
+    const purchase = '#calculator input[aria-label="تكلفة شراء المنتج"]';
+    await fill(purchase, "");
+    assert.equal(await value(purchase), "");
+    await fill(purchase, "10.125");
+    near(await money(".sp-cost-total b"), 13.625);
+    await fill(purchase, "-4");
+    assert(Number(await value(purchase)) >= 0);
+    await fill(purchase, 10);
+    await evaluate(`[...document.querySelectorAll(".sp-presets button")].find(b=>b.textContent==="35%").click()`);
+    await pause(80);
+    near(await money(".sp-price b"), 13.5 / 0.65);
+    await fill("#sp-margin-range", 50);
+  });
+  await check("Percentage fees, comparison field and comparison slider", async () => {
+    await fill('select[aria-label="نوع رسوم الدفع في الحاسبة"]', "percentage");
+    await fill('#calculator input[aria-label="رسوم الدفع الإلكتروني"]', 2);
+    near(await money(".sp-price b"), 13 / 0.48);
+    await fill('input[aria-label="سعر البيع للمقارنة"]', 20);
+    near(await money(".sp-compare-stats > div:nth-child(2) b"), 6.6);
+    await fill('input[aria-label="حرّك سعر البيع للمقارنة"]', 25);
+    near(await money(".sp-compare-stats > div:nth-child(2) b"), 11.5);
+  });
+  await check("Automatic database save and calculator restore after reload", async () => {
+    await waitFor(`document.querySelector(".connection-connected")`);
+    const saved = await api(`/api/pricing/calculations/${session}`);
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.purchaseCost, 10);
+    await send("Page.reload");
+    await waitFor(`document.querySelector(".connection-connected")`);
+    assert.equal(await value('#calculator input[aria-label="رسوم الدفع الإلكتروني"]'), "2");
+  });
+  await check("Default fee fields, saving settings and new-product defaults", async () => {
+    await fill("#default-delivery-fee", "1.25");
+    await fill('select[aria-label="نوع رسوم الدفع الافتراضية"]', "percentage");
+    await fill("#default-payment-fee", "2.5");
+    await click("#store-settings button[type=submit]");
+    await waitFor(`document.querySelector(".sp-default-settings-actions").innerText.includes("تم حفظ")`);
+    await click("#details .sp-heading button");
+    assert.equal(await value("#editor-deliveryCost"), "1.25");
+    assert.equal(await value("#editor-paymentFee"), "2.5");
+  });
+  await check("All detailed product fields and custom cost add/remove", async () => {
+    await fill("#product-name", name);
+    await fill("#product-sku", "TEST-FIELDS");
+    await fill("#product-category", "عطور");
+    await fill("#product-batch", 3);
+    await fill('select[aria-label="نوع رسوم الدفع للمنتج"]', "fixed");
+    for (const [key, amount] of Object.entries({ purchaseCost: 10, packagingCost: 1, deliveryCost: 2, paymentFee: 0.5, marketingCost: 1, operationalCost: 0.5 })) await fill(`#editor-${key}`, amount);
+    await fill("#editor-margin", 50);
+    await fill("#editor-selling", "");
+    await click(".sp-add-custom");
+    await fill('input[aria-label="اسم بند التكلفة 1"]', "تكلفة اختبار");
+    await fill('input[aria-label="قيمة بند التكلفة 1"]', 1);
+    near(await money(".sp-editor-price > strong"), 32);
+    await click(".sp-add-custom");
+    assert.equal(await evaluate(`document.querySelectorAll(".sp-remove-custom").length`), 2);
+    await evaluate(`document.querySelectorAll(".sp-remove-custom")[1].click()`);
+    await pause(100);
+    assert.equal(await evaluate(`document.querySelectorAll(".sp-remove-custom").length`), 1);
+    await fill("#editor-selling", 30);
+    near(await money(".sp-editor-price > strong"), 30);
+    assert((await text(".sp-editor-price")).includes("42.000"));
+  });
+  await check("Discount number, quick presets and slider recalculate", async () => {
+    await fill("#discount-percent", 20);
+    const discounted = await text(".sp-discount-results");
+    assert(discounted.includes("24.000") && discounted.includes("8.000"), discounted);
+    await fill('input[aria-label="نسبة الخصم"]', 10);
+    assert((await text(".sp-discount-results")).includes("27.000"));
+    await evaluate(`[...document.querySelectorAll(".sp-discount-control button")].find(b=>b.textContent==="20%").click()`);
+    await pause(100);
+    assert.equal(await value("#discount-percent"), "20");
+  });
+  await check("Save product through UI and verify persisted calculations", async () => {
+    await click(".sp-editor-actions button[type=submit]");
+    await waitFor(`document.querySelector(".sp-success")?.innerText.includes("تم حفظ")`);
+    const product = (await getProducts()).find((item) => item.name === name);
+    assert(product);
+    productId = product.id;
+    near(product.totalCost, 16);
+    near(product.expectedProfit, 14);
+    near(product.marginPercent, 46.666666);
+    await send("Page.reload");
+    await waitFor(`document.querySelector(".connection-connected")`);
+    await waitFor(`document.querySelector("#catalog").innerText.includes(${JSON.stringify(name)})`);
+  });
+  await check("Catalog edit, save and cancel", async () => {
+    await click(`button[aria-label="تعديل ${name}"]`);
+    assert.equal(await value("#product-name"), name);
+    await fill("#editor-selling", 28);
+    await click(".sp-editor-actions button[type=submit]");
+    await waitFor(`document.querySelector(".sp-success")?.innerText.includes("تم تحديث")`);
+    near((await getProducts()).find((item) => item.id === productId).sellingPrice, 28);
+    await click(".sp-editor-actions button[type=button]");
+    assert.equal(await value("#product-name"), "");
+  });
+  await check("Search, category/margin filters, table and cards", async () => {
+    await fill('input[aria-label="بحث المنتجات"]', name);
+    assert((await text(".sp-table tbody")).includes(name));
+    await fill('select[aria-label="التصفية حسب التصنيف"]', "عطور");
+    await fill('select[aria-label="التصفية حسب هامش الربح"]', "healthy");
+    assert((await text(".sp-table tbody")).includes(name));
+    await fill('select[aria-label="التصفية حسب هامش الربح"]', "review");
+    assert((await text("#catalog")).includes("لا توجد نتائج مطابقة"));
+    await evaluate(`[...document.querySelectorAll("#catalog button")].find(b=>b.textContent==="مسح عوامل التصفية").click()`);
+    await pause(100);
+    await click('button[title="عرض بطاقات"]');
+    assert((await text(".sp-product-grid")).includes(name));
+    await click('button[title="عرض جدولي"]');
+  });
+  await check("CSV export and print button", async () => {
+    await evaluate(`window.__download=""; window.__printCalled=false;
+      const originalClick=HTMLAnchorElement.prototype.click;
+      HTMLAnchorElement.prototype.click=function(){if(this.download){window.__download=this.download;}return originalClick.call(this);};
+      window.print=()=>{window.__printCalled=true;}`);
+    await evaluate(`[...document.querySelectorAll("#catalog button")].find(b=>b.textContent.includes("تصدير CSV")).click()`);
+    assert.equal(await evaluate(`window.__download`), "smart-pricing-products.csv");
+    await evaluate(`[...document.querySelectorAll("#catalog button")].find(b=>b.textContent.includes("طباعة / PDF")).click()`);
+    assert(await evaluate(`window.__printCalled`));
+  });
+  await check("AI advice button with real backend/provider request", async () => {
+    await click(`button[aria-label="تعديل ${name}"]`);
+    await click("#ai-advice button");
+    await waitFor(`document.querySelector(".sp-advice-result") || document.querySelector("#ai-advice [role=alert]")`, 22000);
+    const error = await text("#ai-advice [role=alert]");
+    if (error) throw new Error(`Provider unavailable: ${error}`);
+    assert((await text(".sp-advice-result")).length > 30);
+  });
+  await check("Mobile menu opens/closes and numeric input remains editable", async () => {
+    await send("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    await click(".sp-menu-toggle");
+    assert(await evaluate(`document.querySelector(".sp-menu-toggle").getAttribute("aria-expanded")==="true"`));
+    await click('.sp-sidebar a[href="#calculator"]');
+    assert(await evaluate(`document.querySelector(".sp-menu-toggle").getAttribute("aria-expanded")==="false"`));
+    await fill('#calculator input[aria-label="تكلفة شراء المنتج"]', "11.25");
+    assert.equal(await value('#calculator input[aria-label="تكلفة شراء المنتج"]'), "11.25");
+    assert(await evaluate(`document.documentElement.scrollWidth<=window.innerWidth`));
+  });
+  await check("Delete own test product and confirm persistent deletion", async () => {
+    await send("Emulation.setDeviceMetricsOverride", { width: 1024, height: 819, deviceScaleFactor: 1, mobile: false });
+    await click('button[title="عرض جدولي"]');
+    await evaluate(`window.confirm=()=>true`);
+    await click(`button[aria-label="حذف ${name}"]`);
+    await waitFor(`!document.querySelector('button[aria-label="حذف ${name}"]')`);
+    assert(!(await getProducts()).some((item) => item.name === name));
+    await send("Page.reload");
+    await waitFor(`document.querySelector(".connection-connected")`);
+    assert(!(await getProducts()).some((item) => item.name === name));
+  });
+} finally {
+  // Always remove only this run's test products, even when a UI assertion failed.
+  for (const product of (await getProducts()).filter((item) => item.name === name)) {
+    await api(`${productsPath}/${product.id}`, { method: "DELETE" });
+  }
+  socket.close();
+}
+console.log(JSON.stringify({ checks, browserExceptions: exceptions }, null, 2));
+if (checks.some((item) => !item.pass) || exceptions.length) process.exitCode = 1;
