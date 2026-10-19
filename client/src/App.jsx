@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { normalizeCalculatorInputs, sanitizeNumericInput, updateCalculatorInputs } from "./calculatorInputs.js";
 import {
   createProduct,
   deleteProduct,
@@ -336,7 +337,7 @@ function App() {
     if (!initialized.current || !sessionRef.current) return undefined;
     setConnection("saving");
     const timeout = window.setTimeout(() => {
-      saveCalculation(sessionRef.current, inputs)
+      saveCalculation(sessionRef.current, normalizeCalculatorInputs(inputs))
         .then(() => setConnection("connected"))
         .catch(() => setConnection("offline"));
     }, 500);
@@ -372,33 +373,7 @@ function App() {
   }, [products]);
 
   function updateCalculatorField(key, rawValue) {
-    if (key === "paymentFeeType") {
-      if (!["fixed", "percentage"].includes(rawValue)) return;
-      setInputs((current) => {
-        const rate = rawValue === "percentage" ? Number(current.paymentFee || 0) : 0;
-        const maxMargin = Math.max(0, Math.min(90, 99.99 - rate));
-        return {
-          ...current,
-          paymentFeeType: rawValue,
-          targetMarginPercent: Math.min(Number(current.targetMarginPercent) || 0, maxMargin),
-        };
-      });
-      return;
-    }
-    const value = rawValue === "" ? 0 : Number(rawValue);
-    if (!Number.isFinite(value)) return;
-    setInputs((current) => {
-      const nextValue = Math.max(0, key === "paymentFee" && current.paymentFeeType === "percentage"
-        ? Math.min(99, value)
-        : value);
-      const next = { ...current, [key]: nextValue };
-      if (key === "paymentFee" || key === "targetMarginPercent") {
-        const rate = next.paymentFeeType === "percentage" ? Number(next.paymentFee || 0) : 0;
-        const maxMargin = Math.max(0, Math.min(90, 99.99 - rate));
-        next.targetMarginPercent = Math.min(Number(next.targetMarginPercent) || 0, maxMargin);
-      }
-      return next;
-    });
+    setInputs((current) => updateCalculatorInputs(current, key, rawValue));
   }
 
   function startEditorFromCalculator() {
@@ -494,6 +469,20 @@ function App() {
     }
   }
 
+  function updatePricingSetting(key, rawValue) {
+    setPricingSettings((current) => {
+      if (key === "defaultPaymentFeeType") {
+        const feeType = rawValue === "percentage" ? "percentage" : "fixed";
+        const maxFee = feeType === "percentage" ? 99 : 1_000_000;
+        const fee = sanitizeNumericInput(String(current.defaultPaymentFee ?? ""), { max: maxFee });
+        return { ...current, defaultPaymentFeeType: feeType, defaultPaymentFee: fee ?? current.defaultPaymentFee };
+      }
+      const max = key === "defaultPaymentFee" && current.defaultPaymentFeeType === "percentage" ? 99 : 1_000_000;
+      const value = sanitizeNumericInput(rawValue, { max });
+      return value === null ? current : { ...current, [key]: value };
+    });
+  }
+
   async function askForPricingAdvice() {
     if (!sessionRef.current || adviceLoading) return;
     setAdvice("");
@@ -515,7 +504,25 @@ function App() {
 
   function updateEditor(key, value) {
     setEditor((current) => {
-      const next = { ...current, [key]: value };
+      const numericFields = ["purchaseCost", "packagingCost", "deliveryCost", "paymentFee", "marketingCost", "operationalCost", "batchQuantity", "targetMarginPercent", "sellingPrice"];
+      let safeValue = value;
+      if (numericFields.includes(key)) {
+        let max = 1_000_000;
+        let min = 0;
+        let integer = false;
+        if (key === "paymentFee" && current.paymentFeeType === "percentage") max = 99;
+        if (key === "batchQuantity") {
+          min = 1;
+          integer = true;
+        }
+        if (key === "targetMarginPercent") {
+          const rate = current.paymentFeeType === "percentage" ? Number(current.paymentFee) || 0 : 0;
+          max = Math.max(0, Math.min(90, 99.99 - rate));
+        }
+        safeValue = sanitizeNumericInput(value, { min, max, integer });
+        if (safeValue === null) return current;
+      }
+      const next = { ...current, [key]: safeValue };
       const feeType = next.paymentFeeType === "percentage" ? "percentage" : "fixed";
       const feeRate = feeType === "percentage" ? Math.min(99, Number(next.paymentFee) || 0) : 0;
       const maxMargin = Math.max(0, Math.min(90, 99.99 - feeRate));
@@ -581,6 +588,10 @@ function App() {
   }
 
   function updateCustomCost(index, key, value) {
+    if (key === "amount") {
+      value = sanitizeNumericInput(value);
+      if (value === null) return;
+    }
     setEditor((current) => ({
       ...current,
       customCosts: current.customCosts.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
@@ -685,7 +696,7 @@ function App() {
                 <div className="sp-presets" aria-label="قيم الهامش السريعة">
                   {[25, 35, 50, 65].map((value) => <button type="button" className={Number(inputs.targetMarginPercent) === value ? "is-active" : ""} key={value} onClick={() => updateCalculatorField("targetMarginPercent", String(value))}>{value}%</button>)}
                 </div>
-                <input id="sp-margin-range" className="sp-slider" aria-label="هامش الربح المستهدف" type="range" min="0" max={calculatorMaxMargin} step="1" value={inputs.targetMarginPercent} onChange={(event) => updateCalculatorField("targetMarginPercent", event.target.value)} />
+                <input id="sp-margin-range" className="sp-slider" aria-label="هامش الربح المستهدف" type="range" min="0" max={calculatorMaxMargin} step="1" value={Number(inputs.targetMarginPercent) || 0} onChange={(event) => updateCalculatorField("targetMarginPercent", event.target.value)} />
                 <div className="sp-range-labels"><span>٠٪</span><span>{formatPercent(calculatorMaxMargin)}</span></div>
                 {results.invalidTarget && <p className="sp-inline-warning" role="alert">لا يمكن بلوغ هذا الهامش مع نسبة رسوم الدفع الحالية. خفّض الرسوم أو الهامش.</p>}
               </div>
@@ -710,7 +721,7 @@ function App() {
                 <div className="sp-compare-heading"><div><span className="sp-kicker">مقارنة سريعة</span><h3>ماذا لو غيّرت سعر البيع؟</h3></div></div>
                 <p className="sp-compare-help">غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.</p>
                 <label className="sp-compare-field"><span>سعر البيع للمقارنة</span><span className="sp-input-shell"><span className="sp-currency-label">د.ك</span><input aria-label="سعر البيع للمقارنة" type="number" min="0" step="0.001" inputMode="decimal" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} /></span></label>
-                <input className="sp-slider sp-compare-slider" aria-label="حرّك سعر البيع للمقارنة" type="range" min="0" max={Math.max(20, Number(inputs.comparisonSellingPrice) || 0, results.suggestedSellingPrice * 2)} step="0.001" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} />
+                <input className="sp-slider sp-compare-slider" aria-label="حرّك سعر البيع للمقارنة" type="range" min="0" max={Math.max(20, Number(inputs.comparisonSellingPrice) || 0, results.suggestedSellingPrice * 2)} step="0.001" value={Number(inputs.comparisonSellingPrice) || 0} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} />
                 <div className="sp-compare-stats">
                   <div><span>إجمالي التكلفة</span><Money value={results.comparisonTotalCost} /></div>
                   <div><span>الربح المتوقع</span><Money value={results.comparisonProfit} className={results.comparisonProfit < 0 ? "is-negative" : ""} /></div>
@@ -740,15 +751,15 @@ function App() {
             <div className="sp-editor-fields">
               <div className="sp-editor-field">
                 <label htmlFor="default-delivery-fee">رسوم التوصيل الافتراضية</label>
-                <div className="sp-unit-control"><input id="default-delivery-fee" type="number" min="0" step="0.001" value={pricingSettings.defaultDeliveryFee} onChange={(event) => setPricingSettings((current) => ({ ...current, defaultDeliveryFee: event.target.value }))} /><span>د.ك</span></div>
+                <div className="sp-unit-control"><input id="default-delivery-fee" type="number" min="0" step="0.001" value={pricingSettings.defaultDeliveryFee} onChange={(event) => updatePricingSetting("defaultDeliveryFee", event.target.value)} /><span>د.ك</span></div>
               </div>
               <div className="sp-editor-field">
                 <label htmlFor="default-payment-fee">رسوم الدفع الافتراضية (KNET / MyFatoorah)</label>
                 <div className="sp-default-payment-row">
-                  <select aria-label="نوع رسوم الدفع الافتراضية" value={pricingSettings.defaultPaymentFeeType} onChange={(event) => setPricingSettings((current) => ({ ...current, defaultPaymentFeeType: event.target.value }))}>
+                  <select aria-label="نوع رسوم الدفع الافتراضية" value={pricingSettings.defaultPaymentFeeType} onChange={(event) => updatePricingSetting("defaultPaymentFeeType", event.target.value)}>
                     <option value="fixed">قيمة ثابتة</option><option value="percentage">نسبة مئوية</option>
                   </select>
-                  <div className="sp-unit-control"><input id="default-payment-fee" type="number" min="0" max={pricingSettings.defaultPaymentFeeType === "percentage" ? "99" : "1000000"} step={pricingSettings.defaultPaymentFeeType === "percentage" ? "0.01" : "0.001"} value={pricingSettings.defaultPaymentFee} onChange={(event) => setPricingSettings((current) => ({ ...current, defaultPaymentFee: event.target.value }))} /><span>{pricingSettings.defaultPaymentFeeType === "percentage" ? "%" : "د.ك"}</span></div>
+                  <div className="sp-unit-control"><input id="default-payment-fee" type="number" min="0" max={pricingSettings.defaultPaymentFeeType === "percentage" ? "99" : "1000000"} step={pricingSettings.defaultPaymentFeeType === "percentage" ? "0.01" : "0.001"} value={pricingSettings.defaultPaymentFee} onChange={(event) => updatePricingSetting("defaultPaymentFee", event.target.value)} /><span>{pricingSettings.defaultPaymentFeeType === "percentage" ? "%" : "د.ك"}</span></div>
                 </div>
               </div>
             </div>
@@ -846,7 +857,7 @@ function App() {
                 <p className="sp-discount-help">شاهد ربح الطلب بعد الخصم مع إعادة احتساب رسوم الدفع النسبية على سعره الجديد.</p>
                 <label className="sp-editor-field" htmlFor="discount-percent">نسبة الخصم</label>
                 <div className="sp-discount-control">
-                  <input id="discount-percent" type="number" min="0" max="100" step="1" value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} />
+                  <input id="discount-percent" type="number" min="0" max="100" step="1" value={discountPercent} onChange={(event) => setDiscountPercent(sanitizeNumericInput(event.target.value, { max: 100 }) ?? discountPercent)} />
                   <span>%</span>
                   {[10, 20].map((value) => <button type="button" className={discountValue === value ? "is-active" : ""} key={value} onClick={() => setDiscountPercent(String(value))}>{value}%</button>)}
                 </div>
