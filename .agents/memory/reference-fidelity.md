@@ -7,7 +7,7 @@ Use the supplied screenshot's actual logo artwork, not a loosely similar illustr
 
 **Why:** The user requested an exact visual match and corrected the replacement artwork.
 
-**How to apply:** Preserve the reference logo when adding motion or refining the interface. Requested animation should not change the logo's identity.
+**How to apply:** Preserve the reference logo when refining the interface. Keep requested motion subtle and avoid strong rotation or other effects that distort its identity.
 
 Match the sidebar appearance while connecting only existing MVP functions.
 
