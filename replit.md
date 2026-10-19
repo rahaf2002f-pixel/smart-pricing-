@@ -48,7 +48,8 @@ saving/restoring them is unavailable.
 
 Set `OPENROUTER_API_KEY` in Replit Secrets to enable AI explanations. The app
 calculates all prices, fees, margins, and discounts itself; OpenRouter only
-explains the resulting metrics. The default model is `openai/gpt-4o-mini`; set
+explains the resulting metrics. The default model is `google/gemini-3.1-flash-lite`;
+set
 `OPENROUTER_MODEL` to choose another OpenRouter model.
 
 ## Imported reference files
