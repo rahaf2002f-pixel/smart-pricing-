@@ -576,10 +576,10 @@ a { color: inherit; text-decoration: none; }
   width:min(539px,100%);
   min-height:442px;
   padding:24px 28px 30px;
-  border:1.5px solid #eda45e;
+  border:1px solid #f0f2f5;
   border-radius:24px;
-  background:linear-gradient(145deg,#fff6eb,#f7ecdf);
-  box-shadow:0 15px 40px #14213d0b,0 0 0 4px #ff9f430a;
+  background:rgba(255,255,255,.94);
+  box-shadow:0 15px 40px #14213d0b;
   transform:translateY(-7px);
 }
 .sp-hero-artwork {
