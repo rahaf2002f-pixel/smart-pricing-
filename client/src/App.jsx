@@ -11,37 +11,21 @@ const DEFAULTS = {
 };
 
 const FIELDS = [
-  { key: "purchaseCost", label: "تكلفة شراء المنتج", icon: "01" },
-  { key: "packagingCost", label: "تكلفة التغليف", icon: "02" },
-  { key: "deliveryCost", label: "تكلفة التوصيل", icon: "03" },
-  { key: "paymentFee", label: "رسوم الدفع الإلكتروني", icon: "04" },
+  { key: "purchaseCost", label: "تكلفة شراء المنتج", number: "01", note: "من المورد" },
+  { key: "deliveryCost", label: "تكلفة التوصيل", number: "02", note: "للعميل" },
+  { key: "packagingCost", label: "تكلفة التغليف", number: "03", note: "لكل قطعة" },
+  { key: "paymentFee", label: "رسوم الدفع الإلكتروني", number: "04", note: "للطلب" },
 ];
 
 function formatKwd(value) {
-  return new Intl.NumberFormat("ar-KW", {
+  return new Intl.NumberFormat("en-KW", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   }).format(Number.isFinite(value) ? value : 0);
 }
 
-function calculateLocally(inputs) {
-  const totalCost = FIELDS.reduce((sum, field) => sum + inputs[field.key], 0);
-  const margin = inputs.targetMarginPercent / 100;
-  const suggestedSellingPrice = totalCost / (1 - margin);
-  const suggestedProfit = suggestedSellingPrice - totalCost;
-  const comparisonProfit = inputs.comparisonSellingPrice - totalCost;
-  const comparisonMargin =
-    inputs.comparisonSellingPrice > 0
-      ? (comparisonProfit / inputs.comparisonSellingPrice) * 100
-      : 0;
-
-  return {
-    totalCost,
-    suggestedSellingPrice,
-    suggestedProfit,
-    comparisonProfit,
-    comparisonMargin,
-  };
+function Money({ value, className = "" }) {
+  return <span className={`sp-money ${className}`}><b>{formatKwd(value)}</b><small>د.ك</small></span>;
 }
 
 function getSessionId() {
@@ -54,21 +38,22 @@ function getSessionId() {
   return sessionId;
 }
 
-function Money({ value, negative = false }) {
-  return (
-    <span className={negative ? "money money-negative" : "money"}>
-      {formatKwd(value)}
-      <small>د.ك</small>
-    </span>
-  );
-}
-
-function App() {
+export default function App() {
   const [inputs, setInputs] = useState(DEFAULTS);
   const [connection, setConnection] = useState("checking");
   const sessionId = useRef(null);
   const initialized = useRef(false);
-  const results = useMemo(() => calculateLocally(inputs), [inputs]);
+  const results = useMemo(() => {
+    const totalCost = FIELDS.reduce((total, field) => total + inputs[field.key], 0);
+    const margin = Math.min(inputs.targetMarginPercent / 100, 0.9);
+    const suggestedSellingPrice = totalCost / (1 - margin);
+    const suggestedProfit = suggestedSellingPrice - totalCost;
+    const comparisonProfit = inputs.comparisonSellingPrice - totalCost;
+    const comparisonMargin = inputs.comparisonSellingPrice > 0
+      ? (comparisonProfit / inputs.comparisonSellingPrice) * 100
+      : 0;
+    return { totalCost, suggestedSellingPrice, suggestedProfit, comparisonProfit, comparisonMargin };
+  }, [inputs]);
 
   useEffect(() => {
     let active = true;
@@ -113,14 +98,10 @@ function App() {
     return () => window.clearTimeout(timeout);
   }, [inputs]);
 
-  function updateField(key, value) {
-    if (value === "") {
-      setInputs((current) => ({ ...current, [key]: 0 }));
-      return;
-    }
-    const number = Number(value);
-    if (!Number.isFinite(number)) return;
-    setInputs((current) => ({ ...current, [key]: number }));
+  function updateField(key, rawValue) {
+    const value = rawValue === "" ? 0 : Number(rawValue);
+    if (!Number.isFinite(value)) return;
+    setInputs((current) => ({ ...current, [key]: Math.max(0, value) }));
   }
 
   const connectionText = {
@@ -130,155 +111,90 @@ function App() {
   }[connection];
 
   return (
-    <main className="page-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="التسعير الذكي، الصفحة الرئيسية">
-          <span className="brand-mark" aria-hidden="true">س</span>
-          <span>
-            <strong>التسعير الذكي</strong>
-            <small>تسعير أوضح، ربح أفضل</small>
-          </span>
-        </a>
-        <div className="topbar-meta">
-          <span className="currency-chip"><span aria-hidden="true">●</span> الدينار الكويتي · د.ك</span>
-          <span className={`connection-chip connection-${connection}`} role="status">
-            <span aria-hidden="true" />
-            {connectionText}
+    <main className="stitch-pricing" dir="rtl" lang="ar">
+      <header className="sp-header">
+        <div className="sp-brand">
+          <div className="sp-mark" aria-hidden="true"><span>س</span><i /></div>
+          <div><strong>التسعير الذكي</strong><small>تسعير أوضح، ربح أفضل</small></div>
+        </div>
+        <div className="sp-header-side">
+          <span className="sp-currency"><i /> الكويت <b>·</b> د.ك (KWD)</span>
+          <span className={`sp-local connection-${connection}`} role="status" aria-live="polite" title={connectionText}>
+            <i /> {connectionText}
           </span>
         </div>
       </header>
 
-      <section className="intro">
-        <div className="eyebrow"><span /> حاسبة تسعير المنتجات</div>
-        <h1>اعرف تكلفة منتجك، وحدد سعره بثقة.</h1>
-        <p>أدخل تكاليفك لتشاهد السعر المقترح والربح المتوقع، وقارن أثر تغيير سعر البيع.</p>
+      <section className="sp-heading">
+        <div className="sp-title-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.4"/><path d="M8 7h8M8 11h2m4 0h2m-8 4h2m4 0h2m-8 3h2"/></svg></div>
+        <div><p className="sp-kicker">حاسبة تسعير المنتجات</p><h1>حاسبة تسعير المنتج</h1><p className="sp-subtitle">أدخل تكاليفك، وشاهد السعر والربح المتوقعين مباشرة.</p></div>
       </section>
 
-      <div className="calculator-layout">
-        <section className="panel costs-panel" aria-labelledby="costs-heading">
-          <div className="panel-heading">
-            <div>
-              <span className="step-label">الخطوة ١</span>
-              <h2 id="costs-heading">تكاليف المنتج</h2>
-            </div>
-            <span className="section-icon" aria-hidden="true">＋</span>
+      <div className="sp-workspace">
+        <section className="sp-form-card" aria-labelledby="sp-costs-title">
+          <div className="sp-form-head">
+            <div><span className="sp-section-symbol" aria-hidden="true">▤</span><h2 id="sp-costs-title">تكاليف المنتج</h2></div>
+            <span className="sp-step">١ / ٢</span>
           </div>
-          <p className="panel-hint">أضف المصاريف اللازمة لكل قطعة حتى لا يفوتك أي بند.</p>
+          <p className="sp-help">أدخل المصاريف اللازمة لكل قطعة حتى لا يفوتك أي بند.</p>
 
-          <div className="input-list">
-            {FIELDS.map(({ key, label, icon }) => (
-              <label className="field" key={key}>
-                <span className="field-label">
-                  <span className="field-index">{icon}</span>
-                  {label}
-                </span>
-                <span className="input-wrap">
-                  <input
-                    aria-label={label}
-                    type="number"
-                    min="0"
-                    max="1000000"
-                    step="0.001"
-                    inputMode="decimal"
-                    value={inputs[key]}
-                    onChange={(event) => updateField(key, event.target.value)}
-                  />
-                  <span>د.ك</span>
+          <div className="sp-fields">
+            {FIELDS.map(({ key, label, number, note }) => (
+              <label className="sp-field" key={key}>
+                <span className="sp-field-heading"><span className="sp-field-name">{label}</span><span className="sp-field-note">{note}</span></span>
+                <span className="sp-input-shell">
+                  <span className="sp-currency-label">د.ك</span>
+                  <input aria-label={label} type="number" min="0" max="1000000" step="0.001" inputMode="decimal" value={inputs[key]} onChange={(event) => updateField(key, event.target.value)} />
+                  <span className="sp-field-number">{number}</span>
                 </span>
               </label>
             ))}
           </div>
 
-          <div className="cost-total">
-            <span>إجمالي تكلفة القطعة</span>
+          <div className="sp-cost-total">
+            <div><span className="sp-total-label">إجمالي تكلفة القطعة</span><small>مجموع تكاليفك المباشرة والتشغيلية</small></div>
             <Money value={results.totalCost} />
           </div>
 
-          <div className="margin-control">
-            <div className="margin-heading">
-              <label htmlFor="target-margin">هامش الربح المستهدف</label>
-              <output htmlFor="target-margin">{inputs.targetMarginPercent}٪</output>
+          <div className="sp-margin">
+            <div className="sp-margin-heading"><div><label htmlFor="sp-margin-range">هامش الربح المستهدف</label><small>السعر يتغير تلقائيًا مع الهامش</small></div><output htmlFor="sp-margin-range">{formatKwd(inputs.targetMarginPercent).replace(/\.000$/, "")}%</output></div>
+            <div className="sp-presets" aria-label="قيم الهامش السريعة">
+              {[25, 35, 50, 65].map((value) => <button type="button" className={inputs.targetMarginPercent === value ? "is-active" : ""} key={value} onClick={() => updateField("targetMarginPercent", String(value))}>{value}%</button>)}
             </div>
-            <input
-              className="margin-slider"
-              id="target-margin"
-              aria-label="هامش الربح المستهدف"
-              type="range"
-              min="0"
-              max="90"
-              step="1"
-              value={inputs.targetMarginPercent}
-              onChange={(event) => updateField("targetMarginPercent", event.target.value)}
-            />
-            <div className="range-labels"><span>٠٪</span><span>٩٠٪</span></div>
-            <p>السعر المقترح يتغير تلقائيًا مع الهامش.</p>
+            <input id="sp-margin-range" className="sp-slider" aria-label="هامش الربح المستهدف" type="range" min="0" max="90" step="1" value={inputs.targetMarginPercent} onChange={(event) => updateField("targetMarginPercent", event.target.value)} />
+            <div className="sp-range-labels"><span>٠٪</span><span>٩٠٪</span></div>
           </div>
         </section>
 
-        <section className="results-column" aria-label="نتائج التسعير">
-          <article className="suggestion-card">
-            <div className="suggestion-top">
-              <div>
-                <span className="step-label">السعر المقترح</span>
-                <h2>بحسب هامشك المستهدف</h2>
-              </div>
-              <span className="sparkle" aria-hidden="true">✳</span>
+        <section className="sp-results" aria-label="نتائج التسعير">
+          <article className="sp-price-card">
+            <div className="sp-result-top"><span>سعر البيع المقترح</span><span className="sp-margin-tag">هامش {inputs.targetMarginPercent}٪</span></div>
+            <p className="sp-result-caption">بحسب هامشك المستهدف</p>
+            <Money value={results.suggestedSellingPrice} className="sp-price" />
+            <div className="sp-key-stats">
+              <div className="sp-stat-cost"><span>التكلفة الكلية للقطعة</span><Money value={results.totalCost} /></div>
+              <div className="sp-stat-profit"><span>صافي الربح للقطعة</span><Money value={results.suggestedProfit} /></div>
             </div>
-            <Money value={results.suggestedSellingPrice} />
-            <div className="suggestion-footer">
-              <span>ربح متوقع</span>
-              <strong><Money value={results.suggestedProfit} /></strong>
-              <span className="margin-pill">{inputs.targetMarginPercent}٪ هامش</span>
+            <div className="sp-distribution">
+              <div className="sp-distribution-head"><span>توزيع السعر</span><span>{inputs.targetMarginPercent}٪ ربح</span></div>
+              <div className="sp-distribution-track" role="img" aria-label={`التكلفة ${100 - inputs.targetMarginPercent} بالمئة والربح ${inputs.targetMarginPercent} بالمئة`}><span style={{ width: `${100 - inputs.targetMarginPercent}%` }} /><i style={{ width: `${inputs.targetMarginPercent}%` }} /></div>
+              <div className="sp-distribution-legend"><span><i className="sp-legend-cost" /> التكلفة</span><span><i className="sp-legend-profit" /> الربح</span></div>
             </div>
           </article>
 
-          <article className="panel comparison-panel">
-            <div className="panel-heading comparison-heading">
-              <div>
-                <span className="step-label">قارن السعر</span>
-                <h2>ماذا لو غيّرت سعر البيع؟</h2>
-              </div>
-              <span className="section-icon compare-icon" aria-hidden="true">↔</span>
-            </div>
-            <p className="panel-hint">غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.</p>
-            <label className="field comparison-field">
-              <span className="field-label">سعر البيع للمقارنة</span>
-              <span className="input-wrap">
-                <input
-                  aria-label="سعر البيع للمقارنة"
-                  type="number"
-                  min="0"
-                  max="1000000"
-                  step="0.001"
-                  inputMode="decimal"
-                  value={inputs.comparisonSellingPrice}
-                  onChange={(event) => updateField("comparisonSellingPrice", event.target.value)}
-                />
-                <span>د.ك</span>
-              </span>
-            </label>
-            <div className="comparison-stats">
-              <div>
-                <span>الربح المتوقع</span>
-                <Money
-                  value={results.comparisonProfit}
-                  negative={results.comparisonProfit < 0}
-                />
-              </div>
-              <div>
-                <span>هامش الربح</span>
-                <strong className={results.comparisonMargin < 0 ? "negative-text" : ""}>
-                  {formatKwd(results.comparisonMargin)}٪
-                </strong>
-              </div>
+          <article className="sp-compare-card">
+            <div className="sp-compare-heading"><div><span className="sp-compare-step">مقارنة سريعة</span><h2>ماذا لو غيّرت سعر البيع؟</h2></div><span className="sp-compare-mark" aria-hidden="true">↔</span></div>
+            <p className="sp-compare-help">غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.</p>
+            <label className="sp-compare-field"><span>سعر البيع للمقارنة</span><span className="sp-input-shell"><span className="sp-currency-label">د.ك</span><input aria-label="سعر البيع للمقارنة" type="number" min="0" max="1000000" step="0.001" inputMode="decimal" value={inputs.comparisonSellingPrice} onChange={(event) => updateField("comparisonSellingPrice", event.target.value)} /></span></label>
+            <div className="sp-compare-stats">
+              <div><span>الربح المتوقع</span><Money value={results.comparisonProfit} className={results.comparisonProfit < 0 ? "is-negative" : ""} /></div>
+              <div><span>هامش الربح</span><strong className={results.comparisonMargin < 0 ? "is-negative" : ""}>{formatKwd(results.comparisonMargin)}٪</strong></div>
             </div>
           </article>
-          <p className="calculation-note">هامش الربح = (سعر البيع − إجمالي التكلفة) ÷ سعر البيع</p>
+          <p className="sp-formula">هامش الربح = (سعر البيع − إجمالي التكلفة) ÷ سعر البيع</p>
         </section>
       </div>
-      <footer className="footer-note">جميع الحسابات بالدينار الكويتي (د.ك)</footer>
+      <footer className="sp-footer"><span>جميع الحسابات بالدينار الكويتي (د.ك)</span><span className="sp-footer-dot" /> تتحدث النتائج تلقائيًا</footer>
     </main>
   );
 }
-
-export default App;
