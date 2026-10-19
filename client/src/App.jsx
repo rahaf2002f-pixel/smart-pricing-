@@ -35,6 +35,18 @@ const FIELDS = [
   { key: "paymentFee", label: "رسوم الدفع الإلكتروني", number: "04", note: "للطلب" },
 ];
 
+const PRIMARY_NAV_ITEMS = [
+  { id: "calculator", label: "محاكي تسعير المنتجات", icon: "calculator" },
+  { id: "catalog", label: "كتالوج وهوامش التكلفة", icon: "package" },
+  { id: "market-comparison", label: "مؤشرات السوق الخليجي", icon: "chart", title: "مقارنة سعر البيع داخل الحاسبة، دون بيانات سوق خارجية" },
+  { id: "ai-advice", label: "توصيات الذكاء الاصطناعي", icon: "brain", accent: "orange" },
+];
+
+const SETTINGS_NAV_ITEMS = [
+  { id: "payment-settings", label: "رسوم الدفع وبوابات KNET", icon: "credit" },
+  { id: "store-settings", label: "إعدادات المتجر والعملات", icon: "settings" },
+];
+
 const EMPTY_PRODUCT = {
   name: "",
   sku: "",
@@ -70,6 +82,14 @@ function Icon({ name }) {
     calculator: <><rect x="5" y="3.5" width="14" height="17" rx="2.4" /><path d="M8 7h8M8 11h2m4 0h2m-8 4h2m4 0h2m-8 3h2" /></>,
     home: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-6v-7h-4v7H4a1 1 0 0 1-1-1z" /><path d="M9 21v-7h6v7" /></>,
     arrow: <><path d="M19 12H5m7 7-7-7 7-7" /></>,
+    sparkles: <><path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z" /><path d="m19 16 .9 2.1L22 19l-2.1.9L19 22l-.9-2.1L16 19l2.1-.9L19 16Z" /><path d="m5 2 .7 1.8L7.5 4.5l-1.8.7L5 7l-.7-1.8-1.8-.7 1.8-.7L5 2Z" /></>,
+    store: <><path d="M3 10.5 4.5 4h15l1.5 6.5" /><path d="M4 10v10h16V10M3 10.5c.5 1.8 3.2 2.5 4.5 0 1.3 2.5 4.2 2.5 5.5 0 1.3 2.5 4.2 2.5 5.5 0 1.3 2.5 4 1.8 4.5 0M9 20v-6h6v6" /></>,
+    chart: <><path d="M3 20h18M5 16l4-5 3 2 6-8" /><path d="M15 5h3v3" /><circle cx="5" cy="16" r="1" /><circle cx="9" cy="11" r="1" /><circle cx="12" cy="13" r="1" /></>,
+    brain: <><path d="M12 4a3 3 0 0 0-5.7 1.3A3.5 3.5 0 0 0 4 11a3.5 3.5 0 0 0 2.3 5.7A3 3 0 0 0 12 18V4Z" /><path d="M12 4a3 3 0 0 1 5.7 1.3A3.5 3.5 0 0 1 20 11a3.5 3.5 0 0 1-2.3 5.7A3 3 0 0 1 12 18M8 9h2m4 0h2m-8 4h2m4 0h2" /></>,
+    credit: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 10h18m-14 5h4" /></>,
+    settings: <><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="9" cy="6" r="2" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none" /><circle cx="11" cy="18" r="2" fill="currentColor" stroke="none" /></>,
+    menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
+    close: <><path d="m6 6 12 12M18 6 6 18" /></>,
     search: <><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4 4" /></>,
     download: <><path d="M12 3v12m-5-5 5 5 5-5M4 20h16" /></>,
     plus: <><path d="M12 5v14M5 12h14" /></>,
@@ -79,6 +99,46 @@ function Icon({ name }) {
     refresh: <><path d="M20 7v5h-5M4 17v-5h5" /><path d="M5.5 9a7 7 0 0 1 11.8-2L20 12M4 12l2.7 5a7 7 0 0 0 11.8-2" /></>,
   };
   return <svg viewBox="0 0 24 24" aria-hidden="true">{paths[name]}</svg>;
+}
+
+function PricingArtwork() {
+  return (
+    <div className="sp-hero-artwork" aria-hidden="true">
+      <div className="sp-art-halo" />
+      <div className="sp-art-frame">
+        <svg viewBox="0 0 100 100" fill="none">
+          <defs>
+            <linearGradient id="pricing-art-screen" x1="16" y1="18" x2="83" y2="86" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#132546" />
+              <stop offset="1" stopColor="#07152A" />
+            </linearGradient>
+            <linearGradient id="pricing-art-mint" x1="23" y1="31" x2="75" y2="73" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#7EFFE1" />
+              <stop offset="1" stopColor="#19BFA0" />
+            </linearGradient>
+            <linearGradient id="pricing-art-gold" x1="34" y1="26" x2="70" y2="69" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#FFD18A" />
+              <stop offset="1" stopColor="#EF8B37" />
+            </linearGradient>
+          </defs>
+          <rect x="15" y="15" width="70" height="70" rx="17" fill="url(#pricing-art-screen)" stroke="#35E0BD" strokeWidth="1.6" />
+          <rect x="20" y="20" width="60" height="60" rx="12" stroke="#FFFFFF" strokeOpacity=".11" />
+          <path d="M27 63.5 49.8 49l22.7 12.8-22.8 14L27 63.5Z" fill="#153E4D" stroke="#48DCC1" strokeWidth="1.3" />
+          <path d="m27 63.5.2-7.2 22.6-13.8.1 6.5L27 63.5Z" fill="#1C6972" stroke="#55E9CF" strokeWidth="1.1" />
+          <path d="m49.9 49 22.6 12.8v-7.1L50 41.5l-.1 7.5Z" fill="#244D5B" stroke="#55E9CF" strokeWidth="1.1" />
+          <path d="m36.4 57.5 22.4-14.1 7.2 4.2-22.5 14-7.1-4.1Z" fill="url(#pricing-art-mint)" fillOpacity=".7" stroke="#7BFFE3" strokeWidth="1" />
+          <path d="m41.9 61.5 22.5-14.1 5.3 3.1-22.5 14-5.3-3Z" fill="#F2B76E" fillOpacity=".88" stroke="#FFE1AA" strokeWidth=".9" />
+          <path d="M38.8 51.7v-8.5m7.5 3.8v-8.3m7.5 3.8v-8.1" stroke="#83FFE3" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="39" cy="41" r="2" fill="#B7FFF0" />
+          <circle cx="46.4" cy="37.4" r="2" fill="#B7FFF0" />
+          <circle cx="53.9" cy="33.8" r="2" fill="#B7FFF0" />
+          <path d="m65 33 2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2-4.2 2.2.8-4.7-3.4-3.3 4.7-.7L65 33Z" fill="url(#pricing-art-gold)" />
+          <path d="M28 72h7m31 3h6" stroke="#3EDFC0" strokeWidth="1.4" strokeLinecap="round" opacity=".8" />
+        </svg>
+      </div>
+      <span className="sp-art-spark"><Icon name="sparkles" /></span>
+    </div>
+  );
 }
 
 function getSessionId() {
@@ -162,6 +222,7 @@ function App() {
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const [activeSection, setActiveSection] = useState("start");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [marginFilter, setMarginFilter] = useState("all");
@@ -308,7 +369,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const sections = ["start", "calculator", "details", "catalog"]
+    const sections = ["start", "calculator", "market-comparison", "details", "store-settings", "payment-settings", "ai-advice", "catalog"]
       .map((id) => document.getElementById(id))
       .filter(Boolean);
     let frameId = 0;
@@ -371,6 +432,12 @@ function App() {
     const totalExpectedProfit = products.reduce((sum, product) => sum + Number(product.expectedProfit || 0), 0);
     return { count, averageSelling, averageMargin, totalExpectedProfit };
   }, [products]);
+  const sidebarMargin = products.length
+    ? catalogStats.averageMargin
+    : results.suggestedSellingPrice > 0
+      ? (results.suggestedProfit / results.suggestedSellingPrice) * 100
+      : 0;
+  const marginHealth = sidebarMargin >= 30 ? "صحي جدًا" : sidebarMargin >= 20 ? "مقبول" : "بحاجة للمراجعة";
 
   function updateCalculatorField(key, rawValue) {
     setInputs((current) => updateCalculatorInputs(current, key, rawValue));
@@ -609,44 +676,79 @@ function App() {
     0,
     Math.min(90, 99.99 - (inputs.paymentFeeType === "percentage" ? Number(inputs.paymentFee) || 0 : 0)),
   );
+  const sidebarMarginText = formatPercent(sidebarMargin).replace("٪", "%");
 
   return (
     <div className="stitch-pricing" dir="rtl" lang="ar">
       <header className="sp-header">
-        <div className="sp-brand">
-          <div className="sp-mark" aria-hidden="true"><span>س</span><i /></div>
-          <div><strong>التسعير الذكي للمتاجر</strong><small>Smart Pricing AI · Kuwait</small></div>
-        </div>
+        <a className="sp-brand" href="#start" aria-label="التسعير الذكي للمتاجر، الصفحة الرئيسية">
+          <div className="sp-mark" aria-hidden="true"><Icon name="sparkles" /></div>
+          <div><strong>التسعير الذكي للمتاجر</strong><small>Smart Pricing AI · GCC Engine</small></div>
+        </a>
         <div className="sp-header-side">
-          <span className="sp-currency"><i /> الكويت · د.ك (KWD)</span>
+          <a className="sp-account-chip" href="#catalog">
+            <span className="sp-account-mark"><Icon name="package" /></span>
+            <span><strong>{editor.name.trim() || "متجرك"}</strong><small>{editingId ? "منتجك الحالي" : "محاكي التسعير"}</small></span>
+          </a>
+          <a className="sp-notice" href="#store-settings" aria-label="إعدادات الرسوم والعملة" title="إعدادات الرسوم والعملة">
+            <Icon name="settings" /><i />
+          </a>
+          <a className="sp-currency" href="#store-settings"><i /> الكويت · د.ك (KWD)</a>
           <span className={`sp-local connection-${connection}`} role="status" aria-live="polite" title={connectionText}>
-            <i /> {connectionText}
+            <i /><span className="sp-sr-only">{connectionText}</span>
           </span>
+          <button className="sp-menu-toggle" type="button" aria-label={sidebarOpen ? "إغلاق القائمة" : "فتح القائمة"} aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>
+            <Icon name={sidebarOpen ? "close" : "menu"} />
+          </button>
         </div>
       </header>
 
-      <aside className="sp-sidebar" aria-label="التنقل داخل الصفحة">
-        <div>
-          <p className="sp-side-label">وحدات التحليل</p>
-          <nav className="sp-side-nav">
-            <a className={activeSection === "start" ? "is-active" : ""} href="#start" aria-current={activeSection === "start" ? "location" : undefined}><Icon name="home" /><span>الرئيسية</span></a>
-            <a className={activeSection === "calculator" ? "is-active" : ""} href="#calculator" aria-current={activeSection === "calculator" ? "location" : undefined}><Icon name="calculator" /><span>محاكي تسعير المنتجات</span></a>
-            <a className={activeSection === "details" ? "is-active" : ""} href="#details" aria-current={activeSection === "details" ? "location" : undefined}><Icon name="package" /><span>التسعير التفصيلي</span></a>
-            <a className={activeSection === "catalog" ? "is-active" : ""} href="#catalog" aria-current={activeSection === "catalog" ? "location" : undefined}><Icon name="package" /><span>قائمة المنتجات</span></a>
+      <aside className={`sp-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label="التنقل داخل التسعير الذكي">
+        <div className="sp-sidebar-content">
+          <p className="sp-side-label">وحدات التحليل <i /></p>
+          <nav className="sp-side-nav" aria-label="وحدات التحليل">
+            {PRIMARY_NAV_ITEMS.map(({ id, label, icon, accent, title }) => {
+              const isActive = activeSection === id || (id === "calculator" && activeSection === "start");
+              return (
+                <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}`} href={`#${id}`} title={title} aria-current={isActive ? "location" : undefined} onClick={() => setSidebarOpen(false)}>
+                  <Icon name={icon} /><span>{label}</span>
+                </a>
+              );
+            })}
+          </nav>
+          <p className="sp-side-group-label"><i /> إعدادات الحسبة</p>
+          <nav className="sp-side-nav" aria-label="إعدادات الحسبة">
+            {SETTINGS_NAV_ITEMS.map(({ id, label, icon }) => {
+              const isActive = activeSection === id;
+              return (
+                <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}`} href={`#${id}`} aria-current={isActive ? "location" : undefined} onClick={() => setSidebarOpen(false)}>
+                  <Icon name={icon} /><span>{label}</span>
+                </a>
+              );
+            })}
           </nav>
         </div>
-        <div className="sp-side-foot"><small>حسابك الحالي</small><strong>الدينار الكويتي</strong></div>
+        <div className="sp-side-foot">
+          <span className="sp-margin-icon"><Icon name="chart" /></span>
+          <div><small>{products.length ? "متوسط هامش الربح" : "هامش الحسبة الحالية"}</small><strong><bdi>{sidebarMarginText}</bdi><span>{marginHealth}</span></strong></div>
+        </div>
       </aside>
 
       <main className="sp-main">
         <section className="sp-section sp-hero-section" id="start">
           <div className="sp-hero-card">
-            <div className="sp-hero-icon" aria-hidden="true"><Icon name="calculator" /></div>
-            <span className="sp-pill">محرك الكويت · KWD</span>
-            <h1>التسعير الذكي</h1>
-            <p>احسب تكلفة منتجك وسعر بيعه بوضوح، من رسوم الدفع والتغليف إلى ربح القطعة والدفعة.</p>
-            <a className="sp-button sp-button-primary" href="#calculator"><Icon name="calculator" /> ابدأ التسعير <Icon name="arrow" /></a>
-            <span className="sp-hero-note">حسبة عملية للمتاجر الصغيرة — بلا تكاليف منسية.</span>
+            <PricingArtwork />
+            <span className="sp-hero-locale"><i /> متجر الكويت <b>·</b> KWD <i /></span>
+            <h1>التسعير الذكي للمتاجر</h1>
+            <p>احسب تكلفة وسعر بيع منتجك بدقة، مع كشف فوري لرسوم<br className="sp-desktop-break" /> KNET وهامش الربح الصافي.</p>
+            <div className="sp-benefits" aria-label="مميزات الحاسبة">
+              <span><Icon name="chart" /> حساب فوري للأرباح <Icon name="sparkles" /></span>
+              <span><Icon name="settings" /> كشف التكاليف وبوابات الدفع <Icon name="sparkles" /></span>
+              <span><Icon name="package" /> سعر البيع الأمثل <Icon name="chart" /></span>
+            </div>
+            <a className="sp-primary-cta" href="#calculator">
+              <Icon name="calculator" /><span>ابدأ التسعير الآن</span><Icon name="arrow" />
+            </a>
           </div>
         </section>
 
@@ -717,7 +819,7 @@ function App() {
                   <div className="sp-distribution-legend"><span><i className="sp-legend-cost" /> التكلفة</span><span><i className="sp-legend-profit" /> الربح</span></div>
                 </div>
               </article>
-              <article className="sp-compare-card">
+              <article className="sp-compare-card" id="market-comparison">
                 <div className="sp-compare-heading"><div><span className="sp-kicker">مقارنة سريعة</span><h3>ماذا لو غيّرت سعر البيع؟</h3></div></div>
                 <p className="sp-compare-help">غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.</p>
                 <label className="sp-compare-field"><span>سعر البيع للمقارنة</span><span className="sp-input-shell"><span className="sp-currency-label">د.ك</span><input aria-label="سعر البيع للمقارنة" type="number" min="0" step="0.001" inputMode="decimal" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} /></span></label>
@@ -743,7 +845,7 @@ function App() {
             <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>منتج جديد <Icon name="plus" /></button>
           </div>
 
-          <form className="sp-default-settings" onSubmit={saveStoreSettings}>
+          <form className="sp-default-settings" id="store-settings" onSubmit={saveStoreSettings}>
             <div className="sp-default-settings-heading">
               <div><h3>رسوم متجرك الافتراضية</h3><p>تُستخدم تلقائيًا عند إنشاء منتج جديد، ويمكن تعديلها داخل كل منتج.</p></div>
               <span>إعدادات هذه الجلسة</span>
@@ -753,7 +855,7 @@ function App() {
                 <label htmlFor="default-delivery-fee">رسوم التوصيل الافتراضية</label>
                 <div className="sp-unit-control"><input id="default-delivery-fee" type="number" min="0" step="0.001" value={pricingSettings.defaultDeliveryFee} onChange={(event) => updatePricingSetting("defaultDeliveryFee", event.target.value)} /><span>د.ك</span></div>
               </div>
-              <div className="sp-editor-field">
+              <div className="sp-editor-field" id="payment-settings">
                 <label htmlFor="default-payment-fee">رسوم الدفع الافتراضية (KNET / MyFatoorah)</label>
                 <div className="sp-default-payment-row">
                   <select aria-label="نوع رسوم الدفع الافتراضية" value={pricingSettings.defaultPaymentFeeType} onChange={(event) => updatePricingSetting("defaultPaymentFeeType", event.target.value)}>
@@ -868,7 +970,7 @@ function App() {
                   <div className={discountStats.profit < 0 ? "is-negative" : ""}><small>الربح بعد الخصم</small><strong>{formatKwd(discountStats.profit)} د.ك</strong><span>الهامش {formatPercent(discountStats.marginPercent)}</span></div>
                 </div>
               </section>
-              <section className="sp-editor-panel sp-advice-panel">
+              <section className="sp-editor-panel sp-advice-panel" id="ai-advice">
                 <div className="sp-advice-heading"><div><h3>اقتراحات الذكاء الاصطناعي</h3><p>التوصيات تشرح النتائج المحسوبة هنا ولا تستبدل الحسابات.</p></div><span>OpenRouter</span></div>
                 <button className="sp-button sp-button-light" type="button" onClick={askForPricingAdvice} disabled={adviceLoading}>
                   {adviceLoading ? "جارٍ إعداد الاقتراح..." : "حلّل السعر والخصم"}
