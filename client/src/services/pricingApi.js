@@ -15,6 +15,41 @@ export async function saveCalculation(sessionId, inputs) {
   return response.json();
 }
 
+export async function getProducts(sessionId) {
+  const response = await fetch(`/api/pricing/products/${sessionId}`);
+  if (!response.ok) throw new Error(await getErrorMessage(response));
+  const body = await response.json();
+  return body.products;
+}
+
+export async function createProduct(sessionId, product) {
+  const response = await fetch(`/api/pricing/products/${sessionId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(product),
+  });
+  if (!response.ok) throw new Error(await getErrorMessage(response));
+  return (await response.json()).product;
+}
+
+export async function updateProduct(sessionId, productId, product) {
+  const response = await fetch(`/api/pricing/products/${sessionId}/${productId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(product),
+  });
+  if (!response.ok) throw new Error(await getErrorMessage(response));
+  return (await response.json()).product;
+}
+
+export async function deleteProduct(sessionId, productId) {
+  const response = await fetch(`/api/pricing/products/${sessionId}/${productId}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error(await getErrorMessage(response));
+  return response.json();
+}
+
 async function getErrorMessage(response) {
   try {
     const body = await response.json();

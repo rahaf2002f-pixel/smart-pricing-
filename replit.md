@@ -7,13 +7,17 @@ Vite + React client and Express API on port 5000.
 Run `npm test` for the pricing calculation checks and `npm run build` to build
 the frontend.
 
-## MVP features
+## Product scope
 
-- Enter product purchase, packaging, delivery, and payment costs.
-- Calculate total cost, target-margin selling price, expected profit, and margin.
-- Change a comparison selling price and see its estimated profit and margin.
-- Keep the current anonymous calculation in MongoDB and restore it in the same
-  browser after a refresh. There is no account or calculation-history UI.
+- The four imported Stitch screens are presented vertically in this order:
+  start, pricing calculator, detailed product pricing, and product catalog.
+- Calculate per-item and batch costs, expected profit, margin, and suggested
+  selling prices using purchase, packaging, delivery, payment, marketing,
+  operational, and custom costs.
+- Compare selling prices and save, edit, search, filter, and delete the current
+  browser session's products. Export the catalog as CSV or print it to PDF.
+- The app remains anonymous: each browser session stores its calculation and
+  product catalog separately. There are no accounts or shared store profiles.
 
 ## MongoDB configuration
 
@@ -28,6 +32,10 @@ saving/restoring them is unavailable.
 - `GET /api/health`
 - `GET /api/pricing/calculations/:sessionId`
 - `PUT /api/pricing/calculations/:sessionId`
+- `GET /api/pricing/products/:sessionId`
+- `POST /api/pricing/products/:sessionId`
+- `PUT /api/pricing/products/:sessionId/:productId`
+- `DELETE /api/pricing/products/:sessionId/:productId`
 
 ## Imported reference files
 
