@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import pricingRoutes from "./routes/pricing.routes.js";
 import productsRoutes from "./routes/products.routes.js";
+import settingsRoutes from "./routes/settings.routes.js";
+import adviceRoutes from "./routes/advice.routes.js";
 
 const app = express();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -20,6 +22,8 @@ app.get("/api/health", (_req, res) => {
   });
 });
 app.use("/api/pricing", pricingRoutes);
+app.use("/api/pricing/settings", settingsRoutes);
+app.use("/api/pricing/advice", adviceRoutes);
 app.use("/api/pricing/products", productsRoutes);
 
 app.use("/api", (_req, res) => {

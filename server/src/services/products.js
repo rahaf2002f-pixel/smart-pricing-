@@ -43,6 +43,16 @@ export function validateProductInput(body) {
     }
   }
 
+  const paymentFeeType = body.paymentFeeType ?? "fixed";
+  if (!["fixed", "percentage"].includes(paymentFeeType)) {
+    errors.paymentFeeType = "اختر رسوم دفع ثابتة أو نسبة مئوية.";
+  } else {
+    values.paymentFeeType = paymentFeeType;
+    if (paymentFeeType === "percentage" && values.paymentFee > 100) {
+      errors.paymentFee = "يجب ألا تتجاوز رسوم الدفع 100٪.";
+    }
+  }
+
   const batchQuantity = body.batchQuantity;
   if (
     typeof batchQuantity !== "number" ||
@@ -65,6 +75,14 @@ export function validateProductInput(body) {
     errors.targetMarginPercent = "يجب أن يكون هامش الربح بين 0٪ و90٪.";
   } else {
     values.targetMarginPercent = targetMarginPercent;
+  }
+
+  if (
+    values.paymentFeeType === "percentage" &&
+    typeof targetMarginPercent === "number" &&
+    targetMarginPercent + values.paymentFee >= 100
+  ) {
+    errors.paymentFee = "اجمع الهامش ورسوم الدفع؛ يجب أن يكون مجموعهما أقل من 100٪.";
   }
 
   if (body.sellingPrice !== undefined && body.sellingPrice !== null) {
@@ -103,22 +121,57 @@ export function validateProductInput(body) {
 }
 
 export function calculateProductPricing(inputs) {
-  const customTotal = inputs.customCosts.reduce((sum, item) => sum + item.amount, 0);
-  const totalCost =
-    PRODUCT_COST_FIELDS.reduce((sum, field) => sum + inputs[field], 0) + customTotal;
+  const paymentFeeType = inputs.paymentFeeType ?? "fixed";
+  const baseCost = PRODUCT_COST_FIELDS
+    .filter((field) => field !== "paymentFee")
+    .reduce((sum, field) => sum + inputs[field], 0)
+    + inputs.customCosts.reduce((sum, item) => sum + item.amount, 0);
   const margin = inputs.targetMarginPercent / 100;
-  const suggestedSellingPrice = margin === 0 ? totalCost : totalCost / (1 - margin);
+  const paymentFeeRate = paymentFeeType === "percentage" ? inputs.paymentFee / 100 : 0;
+  const fixedPaymentFee = paymentFeeType === "fixed" ? inputs.paymentFee : 0;
+  const denominator = 1 - margin - paymentFeeRate;
+  const suggestedSellingPrice = denominator > 0
+    ? (baseCost + fixedPaymentFee) / denominator
+    : 0;
   const sellingPrice = inputs.sellingPrice ?? suggestedSellingPrice;
-  const expectedProfit = sellingPrice - totalCost;
-  const marginPercent = sellingPrice === 0 ? 0 : (expectedProfit / sellingPrice) * 100;
+  const actual = calculateProfitAtPriceWithBase(inputs, sellingPrice, baseCost);
 
   return {
-    totalCost,
-    batchTotalCost: totalCost * inputs.batchQuantity,
+    totalCost: actual.totalCost,
+    batchTotalCost: actual.totalCost * inputs.batchQuantity,
     suggestedSellingPrice,
+    sellingPrice: actual.sellingPrice,
+    paymentFeeAmount: actual.paymentFeeAmount,
+    expectedProfit: actual.expectedProfit,
+    batchExpectedProfit: actual.expectedProfit * inputs.batchQuantity,
+    marginPercent: actual.marginPercent,
+  };
+}
+
+export function calculateProfitAtPrice(inputs, sellingPrice) {
+  const baseCost = PRODUCT_COST_FIELDS
+    .filter((field) => field !== "paymentFee")
+    .reduce((sum, field) => sum + inputs[field], 0)
+    + inputs.customCosts.reduce((sum, item) => sum + item.amount, 0);
+  return calculateProfitAtPriceWithBase(inputs, sellingPrice, baseCost);
+}
+
+function calculateProfitAtPriceWithBase(inputs, sellingPrice, baseCost) {
+  const paymentFeeType = inputs.paymentFeeType ?? "fixed";
+  const paymentFeeRate = paymentFeeType === "percentage" ? inputs.paymentFee / 100 : 0;
+  const paymentFeeAmount = sellingPrice <= 0
+    ? 0
+    : paymentFeeType === "percentage"
+      ? sellingPrice * paymentFeeRate
+      : inputs.paymentFee;
+  const totalCost = baseCost + paymentFeeAmount;
+  const expectedProfit = sellingPrice - totalCost;
+  return {
     sellingPrice,
+    baseCost,
+    paymentFeeAmount,
+    totalCost,
     expectedProfit,
-    batchExpectedProfit: expectedProfit * inputs.batchQuantity,
-    marginPercent,
+    marginPercent: sellingPrice === 0 ? 0 : (expectedProfit / sellingPrice) * 100,
   };
 }

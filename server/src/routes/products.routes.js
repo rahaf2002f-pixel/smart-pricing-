@@ -33,6 +33,8 @@ function serialize(product) {
     packagingCost: product.packagingCost,
     deliveryCost: product.deliveryCost,
     paymentFee: product.paymentFee,
+    paymentFeeType: product.paymentFeeType ?? "fixed",
+    paymentFeeAmount: product.paymentFeeAmount ?? product.paymentFee,
     marketingCost: product.marketingCost,
     operationalCost: product.operationalCost,
     customCosts: product.customCosts,

@@ -28,6 +28,7 @@ function serialize(document) {
     packagingCost: document.packagingCost,
     deliveryCost: document.deliveryCost,
     paymentFee: document.paymentFee,
+    paymentFeeType: document.paymentFeeType ?? "fixed",
     targetMarginPercent: document.targetMarginPercent,
     comparisonSellingPrice: document.comparisonSellingPrice,
     totalCost: document.totalCost,

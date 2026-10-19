@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   calculateProductPricing,
+  calculateProfitAtPrice,
   validateProductInput,
 } from "./products.js";
 
@@ -41,6 +42,23 @@ test("uses an entered selling price and supports a loss-making comparison", () =
   assert.equal(result.sellingPrice, 7);
   assert.ok(Math.abs(result.expectedProfit + 1.6) < 1e-10);
   assert.ok(result.marginPercent < 0);
+});
+
+test("solves a target margin with percentage fees and recalculates a discounted order", () => {
+  const validated = validateProductInput({
+    ...sample,
+    paymentFee: 3,
+    paymentFeeType: "percentage",
+    targetMarginPercent: 40,
+  });
+  assert.equal(validated.errors, null);
+  const suggested = calculateProductPricing(validated.values);
+  assert.ok(Math.abs(suggested.marginPercent - 40) < 1e-10);
+
+  const discountedPrice = suggested.sellingPrice * 0.8;
+  const discounted = calculateProfitAtPrice(validated.values, discountedPrice);
+  assert.ok(Math.abs(discounted.paymentFeeAmount - discountedPrice * 0.03) < 1e-10);
+  assert.ok(Math.abs(discounted.expectedProfit - (discountedPrice - discounted.totalCost)) < 1e-10);
 });
 
 test("rejects invalid quantities, costs, margin, and custom cost labels", () => {

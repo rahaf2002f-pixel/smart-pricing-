@@ -12,8 +12,12 @@ the frontend.
 - The four imported Stitch screens are presented vertically in this order:
   start, pricing calculator, detailed product pricing, and product catalog.
 - Calculate per-item and batch costs, expected profit, margin, and suggested
-  selling prices using purchase, packaging, delivery, payment, marketing,
-  operational, and custom costs.
+  selling prices using purchase, packaging, delivery, fixed or percentage-based
+  payment fees, marketing, operational, and custom costs.
+- Save session-level default delivery and payment fees; override them per product.
+- Compare prices with a live slider and simulate discount impact on profit.
+- Optional OpenRouter advice explains server-calculated pricing results. Add
+  `OPENROUTER_API_KEY` in Replit Secrets to enable this optional feature.
 - Compare selling prices and save, edit, search, filter, and delete the current
   browser session's products. Export the catalog as CSV or print it to PDF.
 - The app remains anonymous: each browser session stores its calculation and
@@ -32,10 +36,20 @@ saving/restoring them is unavailable.
 - `GET /api/health`
 - `GET /api/pricing/calculations/:sessionId`
 - `PUT /api/pricing/calculations/:sessionId`
+- `GET /api/pricing/settings/:sessionId`
+- `PUT /api/pricing/settings/:sessionId`
+- `POST /api/pricing/advice/:sessionId`
 - `GET /api/pricing/products/:sessionId`
 - `POST /api/pricing/products/:sessionId`
 - `PUT /api/pricing/products/:sessionId/:productId`
 - `DELETE /api/pricing/products/:sessionId/:productId`
+
+## OpenRouter configuration
+
+Set `OPENROUTER_API_KEY` in Replit Secrets to enable AI explanations. The app
+calculates all prices, fees, margins, and discounts itself; OpenRouter only
+explains the resulting metrics. The default model is `openai/gpt-4o-mini`; set
+`OPENROUTER_MODEL` to choose another OpenRouter model.
 
 ## Imported reference files
 

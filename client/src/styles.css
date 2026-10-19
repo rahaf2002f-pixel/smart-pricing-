@@ -144,7 +144,7 @@ a { color: inherit; text-decoration: none; }
 .sp-compare-help { margin:6px 0 13px; color:#8793a4; font-size:10px; }
 .sp-compare-field { display:grid; gap:6px; color:#45536a; font-size:10px; font-weight:600; }
 .sp-compare-field .sp-input-shell { height:40px; background:#fafbfd; }
-.sp-compare-stats { display:grid; grid-template-columns:1fr 1fr; margin-top:12px; padding-top:11px; border-top:1px solid #edf0f4; }
+.sp-compare-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); margin-top:12px; padding-top:11px; border-top:1px solid #edf0f4; }
 .sp-compare-stats > div { display:grid; gap:5px; }.sp-compare-stats > div+div { padding-right:15px; border-right:1px solid #e9edf2; }
 .sp-compare-stats > div>span { color:#8491a2; font-size:9px; }
 .sp-compare-stats .sp-money b,.sp-compare-stats strong { color:#168161; font-size:15px; font-weight:800; }
@@ -318,4 +318,48 @@ a { color: inherit; text-decoration: none; }
   #catalog .sp-print-table { display:table!important; width:100%; min-width:0; }
   #catalog .sp-print-table th,#catalog .sp-print-table td { padding:7px 6px; font-size:8px; }
   #catalog .sp-footer { display:flex!important; }
+}
+
+.sp-fee-type,.sp-fee-editor-row select,.sp-default-payment-row select {
+  height:36px; padding:0 9px; border:1px solid var(--line); border-radius:8px;
+  background:#fff; color:#536177; font-size:9px;
+}
+.sp-fee-editor-row,.sp-default-payment-row { display:grid; grid-template-columns:92px minmax(0,1fr); gap:7px; }
+.sp-fee-editor-row .sp-unit-control,.sp-default-payment-row .sp-unit-control { min-width:0; }
+.sp-fee-editor-row .sp-unit-control input,.sp-default-payment-row .sp-unit-control input { min-width:0; }
+.sp-default-settings {
+  margin:0 0 22px; padding:20px; border:1px solid var(--line); border-radius:17px;
+  background:#fff; box-shadow:0 3px 14px #14213d06;
+}
+.sp-default-settings-heading,.sp-advice-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+.sp-default-settings-heading h3,.sp-advice-heading h3 { margin:0; font-size:13px; }
+.sp-default-settings-heading p,.sp-advice-heading p,.sp-discount-help { margin:4px 0 14px; color:var(--muted); font-size:10px; line-height:1.7; }
+.sp-default-settings-heading > span,.sp-advice-heading > span { padding:5px 8px; border-radius:7px; background:#e8faf5; color:var(--mint-dark); font-size:9px; white-space:nowrap; }
+.sp-default-settings-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin-top:14px; }
+.sp-default-settings-actions > span { color:var(--mint-dark); font-size:9px; }
+.sp-inline-warning { color:#a34236!important; font-size:9px; line-height:1.7; }
+.sp-compare-slider { margin:12px 0 0; }
+.sp-discount-control { display:flex; align-items:center; gap:7px; }
+.sp-discount-control input { width:100px; height:38px; padding:0 10px; border:1px solid var(--line); border-radius:9px; direction:ltr; text-align:left; }
+.sp-discount-control > span { color:#66748a; font-size:11px; font-weight:700; }
+.sp-discount-control button { min-height:32px; padding:0 11px; border:1px solid var(--line); border-radius:8px; background:#f5f7fa; color:#66748a; font-size:9px; font-weight:700; }
+.sp-discount-control button.is-active { border-color:var(--mint); background:#e8faf5; color:var(--mint-dark); }
+.sp-discount-results { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:13px; }
+.sp-discount-results > div { display:grid; align-content:start; gap:5px; padding:10px; border:1px solid var(--line); border-radius:10px; background:#fafbfd; }
+.sp-discount-results small,.sp-discount-results span { color:#8995a5; font-size:8px; line-height:1.6; }
+.sp-discount-results strong { color:#263651; font:700 12px "JetBrains Mono",monospace; }
+.sp-discount-results > div:last-child strong { color:var(--mint-dark); }
+.sp-discount-results > div.is-negative strong { color:#bd5353; }
+.sp-advice-panel { display:grid; gap:10px; }
+.sp-advice-heading p { margin-bottom:0; }
+.sp-advice-panel .sp-alert { margin:0; }
+.sp-advice-result { margin:0; padding:12px; border:1px solid #c9ecdf; border-radius:10px; background:#edf9f4; color:#176d58; font-size:10px; line-height:1.9; white-space:pre-line; }
+
+@media (max-width:760px) {
+  .sp-default-settings { padding:16px 13px; }
+  .sp-default-settings .sp-editor-fields { grid-template-columns:1fr; }
+  .sp-default-payment-row { grid-template-columns:85px minmax(0,1fr); }
+  .sp-discount-results { grid-template-columns:1fr; }
+  .sp-discount-control { flex-wrap:wrap; }
+  .sp-discount-control input { flex:1 1 100px; }
 }

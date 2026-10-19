@@ -3,8 +3,11 @@ import {
   createProduct,
   deleteProduct,
   getCalculation,
+  getPricingSettings,
   getProducts,
+  requestPricingAdvice,
   saveCalculation,
+  savePricingSettings,
   updateProduct,
 } from "./services/pricingApi.js";
 
@@ -13,8 +16,15 @@ const DEFAULTS = {
   packagingCost: 0.85,
   deliveryCost: 1.5,
   paymentFee: 0.25,
+  paymentFeeType: "fixed",
   targetMarginPercent: 50,
   comparisonSellingPrice: 16.2,
+};
+
+const DEFAULT_SETTINGS = {
+  defaultDeliveryFee: 0,
+  defaultPaymentFee: 0,
+  defaultPaymentFeeType: "fixed",
 };
 
 const FIELDS = [
@@ -32,6 +42,7 @@ const EMPTY_PRODUCT = {
   packagingCost: "0",
   deliveryCost: "0",
   paymentFee: "0",
+  paymentFeeType: "fixed",
   marketingCost: "0",
   operationalCost: "0",
   customCosts: [],
@@ -94,6 +105,7 @@ function makeEditorProduct(product = null) {
     packagingCost: String(product.packagingCost ?? 0),
     deliveryCost: String(product.deliveryCost ?? 0),
     paymentFee: String(product.paymentFee ?? 0),
+    paymentFeeType: product.paymentFeeType ?? "fixed",
     marketingCost: String(product.marketingCost ?? 0),
     operationalCost: String(product.operationalCost ?? 0),
     customCosts: (product.customCosts ?? []).map((item) => ({ label: item.label, amount: String(item.amount) })),
@@ -103,12 +115,50 @@ function makeEditorProduct(product = null) {
   };
 }
 
+function makeEmptyProduct(settings = DEFAULT_SETTINGS) {
+  const feeType = settings.defaultPaymentFeeType ?? "fixed";
+  const fee = Number(settings.defaultPaymentFee) || 0;
+  const maxMargin = Math.max(0, Math.min(90, 99.99 - (feeType === "percentage" ? fee : 0)));
+  return {
+    ...EMPTY_PRODUCT,
+    deliveryCost: String(settings.defaultDeliveryFee ?? 0),
+    paymentFee: String(settings.defaultPaymentFee ?? 0),
+    paymentFeeType: feeType,
+    targetMarginPercent: String(Math.min(Number(EMPTY_PRODUCT.targetMarginPercent), maxMargin)),
+    customCosts: [],
+  };
+}
+
+function isUntouchedProduct(editor) {
+  return editor.name === ""
+    && editor.sku === ""
+    && editor.category === ""
+    && editor.purchaseCost === "0"
+    && editor.packagingCost === "0"
+    && editor.deliveryCost === "0"
+    && editor.paymentFee === "0"
+    && editor.paymentFeeType === "fixed"
+    && editor.marketingCost === "0"
+    && editor.operationalCost === "0"
+    && editor.customCosts.length === 0
+    && editor.batchQuantity === "1"
+    && editor.targetMarginPercent === "50"
+    && editor.sellingPrice === "";
+}
+
 function App() {
   const [inputs, setInputs] = useState(DEFAULTS);
   const [connection, setConnection] = useState("checking");
   const [sessionId, setSessionId] = useState("");
   const [products, setProducts] = useState([]);
   const [productsState, setProductsState] = useState("loading");
+  const [pricingSettings, setPricingSettings] = useState(DEFAULT_SETTINGS);
+  const [settingsStatus, setSettingsStatus] = useState("");
+  const [settingsError, setSettingsError] = useState("");
+  const [discountPercent, setDiscountPercent] = useState("0");
+  const [advice, setAdvice] = useState("");
+  const [adviceError, setAdviceError] = useState("");
+  const [adviceLoading, setAdviceLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
   const [activeSection, setActiveSection] = useState("start");
   const [search, setSearch] = useState("");
@@ -127,30 +177,78 @@ function App() {
   const sessionRef = useRef(null);
 
   const results = useMemo(() => {
-    const totalCost = FIELDS.reduce((total, field) => total + Number(inputs[field.key] || 0), 0);
+    const baseCost = FIELDS
+      .filter((field) => field.key !== "paymentFee")
+      .reduce((total, field) => total + Number(inputs[field.key] || 0), 0);
+    const paymentFeeRate = inputs.paymentFeeType === "percentage"
+      ? Number(inputs.paymentFee || 0) / 100
+      : 0;
+    const fixedPaymentFee = inputs.paymentFeeType === "fixed" ? Number(inputs.paymentFee || 0) : 0;
+    const paymentFeeAt = (price) => price <= 0
+      ? 0
+      : inputs.paymentFeeType === "percentage"
+        ? price * paymentFeeRate
+        : fixedPaymentFee;
     const margin = Math.min(Number(inputs.targetMarginPercent) / 100, 0.9);
-    const suggestedSellingPrice = margin < 1 ? totalCost / (1 - margin) : totalCost;
+    const denominator = 1 - margin - paymentFeeRate;
+    const suggestedSellingPrice = denominator > 0
+      ? (baseCost + fixedPaymentFee) / denominator
+      : 0;
+    const totalCost = baseCost + paymentFeeAt(suggestedSellingPrice);
     const suggestedProfit = suggestedSellingPrice - totalCost;
-    const comparisonProfit = Number(inputs.comparisonSellingPrice) - totalCost;
+    const comparisonTotalCost = baseCost + paymentFeeAt(Number(inputs.comparisonSellingPrice));
+    const comparisonProfit = Number(inputs.comparisonSellingPrice) - comparisonTotalCost;
     const comparisonMargin = Number(inputs.comparisonSellingPrice) > 0
       ? (comparisonProfit / Number(inputs.comparisonSellingPrice)) * 100 : 0;
-    return { totalCost, suggestedSellingPrice, suggestedProfit, comparisonProfit, comparisonMargin };
+    return {
+      baseCost,
+      totalCost,
+      suggestedSellingPrice,
+      suggestedProfit,
+      comparisonTotalCost,
+      comparisonProfit,
+      comparisonMargin,
+      invalidTarget: denominator <= 0,
+    };
   }, [inputs]);
 
-  const editorCosts = useMemo(() => {
-    const fixed = ["purchaseCost", "packagingCost", "deliveryCost", "paymentFee", "marketingCost", "operationalCost"]
+  const editorBaseCost = useMemo(() => {
+    const fixed = ["purchaseCost", "packagingCost", "deliveryCost", "marketingCost", "operationalCost"]
       .reduce((total, key) => total + (Number(editor[key]) || 0), 0);
     return fixed + editor.customCosts.reduce((total, item) => total + (Number(item.amount) || 0), 0);
   }, [editor]);
+  const editorPaymentFeeRate = editor.paymentFeeType === "percentage" ? (Number(editor.paymentFee) || 0) / 100 : 0;
+  const editorFixedPaymentFee = editor.paymentFeeType === "fixed" ? Number(editor.paymentFee) || 0 : 0;
   const editorMargin = Math.min(Math.max(Number(editor.targetMarginPercent) || 0, 0), 90) / 100;
-  const editorSuggested = editorMargin < 1 ? editorCosts / (1 - editorMargin) : editorCosts;
+  const editorPriceDenominator = 1 - editorMargin - editorPaymentFeeRate;
+  const editorSuggested = editorPriceDenominator > 0
+    ? (editorBaseCost + editorFixedPaymentFee) / editorPriceDenominator
+    : 0;
   const editorSell = editor.sellingPrice === "" ? editorSuggested : Number(editor.sellingPrice) || 0;
-  const editorProfit = editorSell - editorCosts;
+  const getEditorPriceStats = (price) => {
+    const paymentFeeAmount = price <= 0
+      ? 0
+      : editor.paymentFeeType === "percentage"
+        ? price * editorPaymentFeeRate
+        : editorFixedPaymentFee;
+    const totalCost = editorBaseCost + paymentFeeAmount;
+    const profit = price - totalCost;
+    return { price, paymentFeeAmount, totalCost, profit, marginPercent: price > 0 ? (profit / price) * 100 : 0 };
+  };
+  const editorStats = getEditorPriceStats(editorSell);
+  const editorCosts = editorStats.totalCost;
+  const editorProfit = editorStats.profit;
+  const discountValue = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  const discountStats = getEditorPriceStats(editorSell * (1 - discountValue / 100));
   const editorBatch = Math.max(1, Math.floor(Number(editor.batchQuantity) || 1));
   const marginScenarios = [25, 40, Number(editor.targetMarginPercent) || 0, 65].map((margin, index) => {
     const safeMargin = Math.min(Math.max(margin, 0), 90);
-    const price = editorCosts / (1 - safeMargin / 100);
-    return { id: index, margin: safeMargin, price, profit: price - editorCosts, selected: index === 2 };
+    const denominator = 1 - safeMargin / 100 - editorPaymentFeeRate;
+    const price = denominator > 0
+      ? (editorBaseCost + editorFixedPaymentFee) / denominator
+      : 0;
+    const stats = getEditorPriceStats(price);
+    return { id: index, margin: safeMargin, price, profit: stats.profit, selected: index === 2 };
   });
 
   useEffect(() => {
@@ -158,17 +256,30 @@ function App() {
     const id = getSessionId();
     sessionRef.current = id;
     setSessionId(id);
-    getCalculation(id)
-      .then((saved) => {
+    Promise.all([getCalculation(id), getPricingSettings(id)])
+      .then(([saved, savedSettings]) => {
         if (!active) return;
+        setPricingSettings(savedSettings);
+        setEditor((current) => isUntouchedProduct(current) ? makeEmptyProduct(savedSettings) : current);
         if (saved) setInputs({
           purchaseCost: saved.purchaseCost,
           packagingCost: saved.packagingCost,
           deliveryCost: saved.deliveryCost,
           paymentFee: saved.paymentFee,
+          paymentFeeType: saved.paymentFeeType ?? "fixed",
           targetMarginPercent: saved.targetMarginPercent,
           comparisonSellingPrice: saved.comparisonSellingPrice,
         });
+        else setInputs((current) => ({
+          ...current,
+          deliveryCost: savedSettings.defaultDeliveryFee,
+          paymentFee: savedSettings.defaultPaymentFee,
+          paymentFeeType: savedSettings.defaultPaymentFeeType,
+          targetMarginPercent: Math.min(
+            Number(current.targetMarginPercent) || 0,
+            Math.max(0, Math.min(90, 99.99 - (savedSettings.defaultPaymentFeeType === "percentage" ? Number(savedSettings.defaultPaymentFee) || 0 : 0))),
+          ),
+        }));
         setConnection("connected");
       })
       .catch(() => { if (active) setConnection("offline"); })
@@ -261,9 +372,33 @@ function App() {
   }, [products]);
 
   function updateCalculatorField(key, rawValue) {
+    if (key === "paymentFeeType") {
+      if (!["fixed", "percentage"].includes(rawValue)) return;
+      setInputs((current) => {
+        const rate = rawValue === "percentage" ? Number(current.paymentFee || 0) : 0;
+        const maxMargin = Math.max(0, Math.min(90, 99.99 - rate));
+        return {
+          ...current,
+          paymentFeeType: rawValue,
+          targetMarginPercent: Math.min(Number(current.targetMarginPercent) || 0, maxMargin),
+        };
+      });
+      return;
+    }
     const value = rawValue === "" ? 0 : Number(rawValue);
     if (!Number.isFinite(value)) return;
-    setInputs((current) => ({ ...current, [key]: Math.max(0, value) }));
+    setInputs((current) => {
+      const nextValue = Math.max(0, key === "paymentFee" && current.paymentFeeType === "percentage"
+        ? Math.min(99, value)
+        : value);
+      const next = { ...current, [key]: nextValue };
+      if (key === "paymentFee" || key === "targetMarginPercent") {
+        const rate = next.paymentFeeType === "percentage" ? Number(next.paymentFee || 0) : 0;
+        const maxMargin = Math.max(0, Math.min(90, 99.99 - rate));
+        next.targetMarginPercent = Math.min(Number(next.targetMarginPercent) || 0, maxMargin);
+      }
+      return next;
+    });
   }
 
   function startEditorFromCalculator() {
@@ -271,14 +406,26 @@ function App() {
     setProductError("");
     setProductNotice("");
     setEditor({
-      ...EMPTY_PRODUCT,
+      ...makeEmptyProduct(pricingSettings),
       purchaseCost: String(inputs.purchaseCost),
       packagingCost: String(inputs.packagingCost),
       deliveryCost: String(inputs.deliveryCost),
       paymentFee: String(inputs.paymentFee),
+      paymentFeeType: inputs.paymentFeeType,
       targetMarginPercent: String(inputs.targetMarginPercent),
     });
     scrollTo("details");
+  }
+
+  function startNewProduct(shouldScroll = false) {
+    setEditingId(null);
+    setEditor(makeEmptyProduct(pricingSettings));
+    setProductError("");
+    setProductNotice("");
+    setDiscountPercent("0");
+    setAdvice("");
+    setAdviceError("");
+    if (shouldScroll) scrollTo("details");
   }
 
   function editProduct(product) {
@@ -304,6 +451,8 @@ function App() {
 
   function buildProductInput() {
     const number = (key) => Math.max(0, Number(editor[key]) || 0);
+    const paymentFeeType = editor.paymentFeeType === "percentage" ? "percentage" : "fixed";
+    const maxMargin = Math.max(0, Math.min(90, 99.99 - (paymentFeeType === "percentage" ? number("paymentFee") : 0)));
     const payload = {
       name: editor.name.trim(),
       sku: editor.sku.trim(),
@@ -312,6 +461,7 @@ function App() {
       packagingCost: number("packagingCost"),
       deliveryCost: number("deliveryCost"),
       paymentFee: number("paymentFee"),
+      paymentFeeType,
       marketingCost: number("marketingCost"),
       operationalCost: number("operationalCost"),
       customCosts: editor.customCosts.filter((item) => item.label.trim()).map((item) => ({
@@ -319,10 +469,60 @@ function App() {
         amount: Math.max(0, Number(item.amount) || 0),
       })),
       batchQuantity: Math.max(1, Math.floor(Number(editor.batchQuantity) || 1)),
-      targetMarginPercent: Math.min(90, Math.max(0, Number(editor.targetMarginPercent) || 0)),
+      targetMarginPercent: Math.min(maxMargin, Math.max(0, Number(editor.targetMarginPercent) || 0)),
     };
     if (editor.sellingPrice !== "") payload.sellingPrice = Math.max(0, Number(editor.sellingPrice) || 0);
     return payload;
+  }
+
+  async function saveStoreSettings(event) {
+    event.preventDefault();
+    if (!sessionRef.current) return;
+    setSettingsStatus("جارٍ حفظ الإعدادات...");
+    setSettingsError("");
+    try {
+      const saved = await savePricingSettings(sessionRef.current, {
+        defaultDeliveryFee: Math.max(0, Number(pricingSettings.defaultDeliveryFee) || 0),
+        defaultPaymentFee: Math.max(0, Number(pricingSettings.defaultPaymentFee) || 0),
+        defaultPaymentFeeType: pricingSettings.defaultPaymentFeeType,
+      });
+      setPricingSettings(saved);
+      setSettingsStatus("تم حفظ الرسوم الافتراضية، وستُستخدم للمنتجات الجديدة.");
+    } catch (error) {
+      setSettingsStatus("");
+      setSettingsError(error.message || "تعذر حفظ إعدادات الرسوم.");
+    }
+  }
+
+  async function askForPricingAdvice() {
+    if (!sessionRef.current || adviceLoading) return;
+    setAdvice("");
+    setAdviceError("");
+    setAdviceLoading(true);
+    try {
+      const result = await requestPricingAdvice(
+        sessionRef.current,
+        buildProductInput(),
+        discountValue,
+      );
+      setAdvice(result.advice);
+    } catch (error) {
+      setAdviceError(error.message || "تعذر الحصول على اقتراح الآن.");
+    } finally {
+      setAdviceLoading(false);
+    }
+  }
+
+  function updateEditor(key, value) {
+    setEditor((current) => {
+      const next = { ...current, [key]: value };
+      const feeType = next.paymentFeeType === "percentage" ? "percentage" : "fixed";
+      const feeRate = feeType === "percentage" ? Math.min(99, Number(next.paymentFee) || 0) : 0;
+      const maxMargin = Math.max(0, Math.min(90, 99.99 - feeRate));
+      if (feeType === "percentage" && Number(next.paymentFee) > 99) next.paymentFee = "99";
+      if (Number(next.targetMarginPercent) > maxMargin) next.targetMarginPercent = String(maxMargin);
+      return next;
+    });
   }
 
   async function submitProduct(event) {
@@ -357,7 +557,7 @@ function App() {
       setProducts((current) => current.filter((item) => item.id !== product.id));
       if (editingId === product.id) {
         setEditingId(null);
-        setEditor({ ...EMPTY_PRODUCT, customCosts: [] });
+        setEditor(makeEmptyProduct(pricingSettings));
       }
       setCatalogError("");
     } catch (error) {
@@ -380,10 +580,6 @@ function App() {
     URL.revokeObjectURL(link.href);
   }
 
-  function updateEditor(key, value) {
-    setEditor((current) => ({ ...current, [key]: value }));
-  }
-
   function updateCustomCost(index, key, value) {
     setEditor((current) => ({
       ...current,
@@ -398,6 +594,10 @@ function App() {
     offline: "الحساب يعمل محليًا · تعذر الاتصال",
   }[connection];
   const categories = [...new Set(products.map((product) => product.category).filter(Boolean))];
+  const calculatorMaxMargin = Math.max(
+    0,
+    Math.min(90, 99.99 - (inputs.paymentFeeType === "percentage" ? Number(inputs.paymentFee) || 0 : 0)),
+  );
 
   return (
     <div className="stitch-pricing" dir="rtl" lang="ar">
@@ -461,12 +661,18 @@ function App() {
               <div className="sp-fields">
                 {FIELDS.map(({ key, label, number, note }) => (
                   <label className="sp-field" key={key}>
-                    <span className="sp-field-heading"><span className="sp-field-name">{label}</span><span className="sp-field-note">{note}</span></span>
+                    <span className="sp-field-heading"><span className="sp-field-name">{label}</span><span className="sp-field-note">{key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "من سعر البيع" : note}</span></span>
                     <span className="sp-input-shell">
-                      <span className="sp-currency-label">د.ك</span>
-                      <input aria-label={label} type="number" min="0" max="1000000" step="0.001" inputMode="decimal" value={inputs[key]} onChange={(event) => updateCalculatorField(key, event.target.value)} />
+                      <span className="sp-currency-label">{key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "%" : "د.ك"}</span>
+                      <input aria-label={label} type="number" min="0" max={key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "99" : "1000000"} step={key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "0.01" : "0.001"} inputMode="decimal" value={inputs[key]} onChange={(event) => updateCalculatorField(key, event.target.value)} />
                       <span className="sp-field-number">{number}</span>
                     </span>
+                    {key === "paymentFee" && (
+                      <select className="sp-fee-type" aria-label="نوع رسوم الدفع في الحاسبة" value={inputs.paymentFeeType} onChange={(event) => updateCalculatorField("paymentFeeType", event.target.value)}>
+                        <option value="fixed">رسوم ثابتة لكل طلب</option>
+                        <option value="percentage">نسبة من سعر البيع</option>
+                      </select>
+                    )}
                   </label>
                 ))}
               </div>
@@ -479,8 +685,9 @@ function App() {
                 <div className="sp-presets" aria-label="قيم الهامش السريعة">
                   {[25, 35, 50, 65].map((value) => <button type="button" className={Number(inputs.targetMarginPercent) === value ? "is-active" : ""} key={value} onClick={() => updateCalculatorField("targetMarginPercent", String(value))}>{value}%</button>)}
                 </div>
-                <input id="sp-margin-range" className="sp-slider" aria-label="هامش الربح المستهدف" type="range" min="0" max="90" step="1" value={inputs.targetMarginPercent} onChange={(event) => updateCalculatorField("targetMarginPercent", event.target.value)} />
-                <div className="sp-range-labels"><span>٠٪</span><span>٩٠٪</span></div>
+                <input id="sp-margin-range" className="sp-slider" aria-label="هامش الربح المستهدف" type="range" min="0" max={calculatorMaxMargin} step="1" value={inputs.targetMarginPercent} onChange={(event) => updateCalculatorField("targetMarginPercent", event.target.value)} />
+                <div className="sp-range-labels"><span>٠٪</span><span>{formatPercent(calculatorMaxMargin)}</span></div>
+                {results.invalidTarget && <p className="sp-inline-warning" role="alert">لا يمكن بلوغ هذا الهامش مع نسبة رسوم الدفع الحالية. خفّض الرسوم أو الهامش.</p>}
               </div>
             </section>
 
@@ -503,7 +710,9 @@ function App() {
                 <div className="sp-compare-heading"><div><span className="sp-kicker">مقارنة سريعة</span><h3>ماذا لو غيّرت سعر البيع؟</h3></div></div>
                 <p className="sp-compare-help">غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.</p>
                 <label className="sp-compare-field"><span>سعر البيع للمقارنة</span><span className="sp-input-shell"><span className="sp-currency-label">د.ك</span><input aria-label="سعر البيع للمقارنة" type="number" min="0" step="0.001" inputMode="decimal" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} /></span></label>
+                <input className="sp-slider sp-compare-slider" aria-label="حرّك سعر البيع للمقارنة" type="range" min="0" max={Math.max(20, Number(inputs.comparisonSellingPrice) || 0, results.suggestedSellingPrice * 2)} step="0.001" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} />
                 <div className="sp-compare-stats">
+                  <div><span>إجمالي التكلفة</span><Money value={results.comparisonTotalCost} /></div>
                   <div><span>الربح المتوقع</span><Money value={results.comparisonProfit} className={results.comparisonProfit < 0 ? "is-negative" : ""} /></div>
                   <div><span>هامش الربح</span><strong className={results.comparisonMargin < 0 ? "is-negative" : ""}>{formatKwd(results.comparisonMargin)}٪</strong></div>
                 </div>
@@ -520,8 +729,35 @@ function App() {
               <div className="sp-title-icon"><Icon name="package" /></div>
               <div><p className="sp-kicker">إعداد منتج · التكاليف الشاملة</p><h2>محرر التسعير التفصيلي</h2><p className="sp-subtitle">سجّل المنتج وكل ما يدخل في تكلفة القطعة والدفعة.</p></div>
             </div>
-            <button className="sp-button sp-button-light" type="button" onClick={() => { setEditingId(null); setEditor({ ...EMPTY_PRODUCT, customCosts: [] }); setProductError(""); setProductNotice(""); }}>منتج جديد <Icon name="plus" /></button>
+            <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>منتج جديد <Icon name="plus" /></button>
           </div>
+
+          <form className="sp-default-settings" onSubmit={saveStoreSettings}>
+            <div className="sp-default-settings-heading">
+              <div><h3>رسوم متجرك الافتراضية</h3><p>تُستخدم تلقائيًا عند إنشاء منتج جديد، ويمكن تعديلها داخل كل منتج.</p></div>
+              <span>إعدادات هذه الجلسة</span>
+            </div>
+            <div className="sp-editor-fields">
+              <div className="sp-editor-field">
+                <label htmlFor="default-delivery-fee">رسوم التوصيل الافتراضية</label>
+                <div className="sp-unit-control"><input id="default-delivery-fee" type="number" min="0" step="0.001" value={pricingSettings.defaultDeliveryFee} onChange={(event) => setPricingSettings((current) => ({ ...current, defaultDeliveryFee: event.target.value }))} /><span>د.ك</span></div>
+              </div>
+              <div className="sp-editor-field">
+                <label htmlFor="default-payment-fee">رسوم الدفع الافتراضية (KNET / MyFatoorah)</label>
+                <div className="sp-default-payment-row">
+                  <select aria-label="نوع رسوم الدفع الافتراضية" value={pricingSettings.defaultPaymentFeeType} onChange={(event) => setPricingSettings((current) => ({ ...current, defaultPaymentFeeType: event.target.value }))}>
+                    <option value="fixed">قيمة ثابتة</option><option value="percentage">نسبة مئوية</option>
+                  </select>
+                  <div className="sp-unit-control"><input id="default-payment-fee" type="number" min="0" max={pricingSettings.defaultPaymentFeeType === "percentage" ? "99" : "1000000"} step={pricingSettings.defaultPaymentFeeType === "percentage" ? "0.01" : "0.001"} value={pricingSettings.defaultPaymentFee} onChange={(event) => setPricingSettings((current) => ({ ...current, defaultPaymentFee: event.target.value }))} /><span>{pricingSettings.defaultPaymentFeeType === "percentage" ? "%" : "د.ك"}</span></div>
+                </div>
+              </div>
+            </div>
+            <div className="sp-default-settings-actions">
+              <button className="sp-button sp-button-light" type="submit">حفظ الرسوم الافتراضية</button>
+              {settingsStatus && <span role="status">{settingsStatus}</span>}
+              {settingsError && <span className="sp-inline-warning" role="alert">{settingsError}</span>}
+            </div>
+          </form>
 
           <div className="sp-section-intro">
             <div className="sp-product-context">
@@ -555,13 +791,25 @@ function App() {
                     ["marketingCost", "التسويق والإعلانات"],
                     ["operationalCost", "التشغيل والتوالف"],
                   ].map(([key, label]) => (
-                    <div className="sp-editor-field" key={key}><label htmlFor={`editor-${key}`}>{label}</label><div className="sp-unit-control"><input id={`editor-${key}`} type="number" min="0" step="0.001" value={editor[key]} onChange={(event) => updateEditor(key, event.target.value)} /><span>د.ك</span></div></div>
+                    key === "paymentFee" ? (
+                      <div className="sp-editor-field sp-fee-editor-field" key={key}>
+                        <label htmlFor="editor-paymentFee">رسوم الدفع</label>
+                        <div className="sp-fee-editor-row">
+                          <select aria-label="نوع رسوم الدفع للمنتج" value={editor.paymentFeeType} onChange={(event) => updateEditor("paymentFeeType", event.target.value)}>
+                            <option value="fixed">ثابتة</option><option value="percentage">نسبة</option>
+                          </select>
+                          <div className="sp-unit-control"><input id="editor-paymentFee" type="number" min="0" max={editor.paymentFeeType === "percentage" ? "99" : "1000000"} step={editor.paymentFeeType === "percentage" ? "0.01" : "0.001"} value={editor.paymentFee} onChange={(event) => updateEditor("paymentFee", event.target.value)} /><span>{editor.paymentFeeType === "percentage" ? "%" : "د.ك"}</span></div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="sp-editor-field" key={key}><label htmlFor={`editor-${key}`}>{label}</label><div className="sp-unit-control"><input id={`editor-${key}`} type="number" min="0" step="0.001" value={editor[key]} onChange={(event) => updateEditor(key, event.target.value)} /><span>د.ك</span></div></div>
+                    )
                   ))}
                 </div>
                 <div className="sp-margin">
                   <div className="sp-margin-heading"><div><label htmlFor="editor-margin">هامش الربح المستهدف</label><small>من ٠٪ إلى ٩٠٪</small></div><output htmlFor="editor-margin">{formatPercent(editor.targetMarginPercent)}</output></div>
                   <div className="sp-editor-fields" style={{ marginTop: 12 }}>
-                    <div className="sp-editor-field"><label htmlFor="editor-margin">الهامش المقترح</label><input id="editor-margin" type="number" min="0" max="90" step="1" value={editor.targetMarginPercent} onChange={(event) => updateEditor("targetMarginPercent", event.target.value)} /></div>
+                    <div className="sp-editor-field"><label htmlFor="editor-margin">الهامش المقترح</label><input id="editor-margin" type="number" min="0" max={Math.max(0, Math.min(90, 99.99 - (editor.paymentFeeType === "percentage" ? Number(editor.paymentFee) || 0 : 0)))} step="1" value={editor.targetMarginPercent} onChange={(event) => updateEditor("targetMarginPercent", event.target.value)} /></div>
                     <div className="sp-editor-field"><label htmlFor="editor-selling">سعر البيع المعتمد (اختياري)</label><div className="sp-unit-control"><input id="editor-selling" type="number" min="0" step="0.001" value={editor.sellingPrice} onChange={(event) => updateEditor("sellingPrice", event.target.value)} placeholder="استخدم السعر المقترح" /><span>د.ك</span></div></div>
                   </div>
                 </div>
@@ -593,11 +841,35 @@ function App() {
                 ))}
                 <button className="sp-add-custom" type="button" onClick={() => setEditor((current) => ({ ...current, customCosts: [...current.customCosts, { label: "", amount: "0" }] }))} disabled={editor.customCosts.length >= 20}>+ إضافة بند تكلفة مخصص</button>
               </section>
+              <section className="sp-editor-panel sp-discount-panel">
+                <h3>محاكي الخصومات والعروض</h3>
+                <p className="sp-discount-help">شاهد ربح الطلب بعد الخصم مع إعادة احتساب رسوم الدفع النسبية على سعره الجديد.</p>
+                <label className="sp-editor-field" htmlFor="discount-percent">نسبة الخصم</label>
+                <div className="sp-discount-control">
+                  <input id="discount-percent" type="number" min="0" max="100" step="1" value={discountPercent} onChange={(event) => setDiscountPercent(event.target.value)} />
+                  <span>%</span>
+                  {[10, 20].map((value) => <button type="button" className={discountValue === value ? "is-active" : ""} key={value} onClick={() => setDiscountPercent(String(value))}>{value}%</button>)}
+                </div>
+                <input className="sp-slider" aria-label="نسبة الخصم" type="range" min="0" max="100" step="1" value={discountValue} onChange={(event) => setDiscountPercent(event.target.value)} />
+                <div className="sp-discount-results">
+                  <div><small>قبل الخصم · الربح لكل طلب</small><strong>{formatKwd(editorProfit)} د.ك</strong></div>
+                  <div><small>بعد خصم {formatPercent(discountValue)} · سعر البيع</small><strong>{formatKwd(discountStats.price)} د.ك</strong></div>
+                  <div className={discountStats.profit < 0 ? "is-negative" : ""}><small>الربح بعد الخصم</small><strong>{formatKwd(discountStats.profit)} د.ك</strong><span>الهامش {formatPercent(discountStats.marginPercent)}</span></div>
+                </div>
+              </section>
+              <section className="sp-editor-panel sp-advice-panel">
+                <div className="sp-advice-heading"><div><h3>اقتراحات الذكاء الاصطناعي</h3><p>التوصيات تشرح النتائج المحسوبة هنا ولا تستبدل الحسابات.</p></div><span>OpenRouter</span></div>
+                <button className="sp-button sp-button-light" type="button" onClick={askForPricingAdvice} disabled={adviceLoading}>
+                  {adviceLoading ? "جارٍ إعداد الاقتراح..." : "حلّل السعر والخصم"}
+                </button>
+                {adviceError && <p className="sp-alert" role="alert">{adviceError}</p>}
+                {advice && <p className="sp-advice-result" role="status">{advice}</p>}
+              </section>
               <div className="sp-editor-actions">
                 <button className="sp-button sp-button-primary" type="submit" disabled={savingProduct || !sessionId}>
                   {savingProduct ? "جارٍ الحفظ..." : editingId ? "حفظ تعديلات المنتج" : "حفظ المنتج في الكتالوج"}
                 </button>
-                {editingId && <button className="sp-button sp-button-light" type="button" onClick={() => { setEditingId(null); setEditor({ ...EMPTY_PRODUCT, customCosts: [] }); setProductError(""); setProductNotice(""); }}>إلغاء التعديل</button>}
+                {editingId && <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>إلغاء التعديل</button>}
               </div>
             </form>
             <aside className="sp-editor-summary">
@@ -623,7 +895,7 @@ function App() {
             <div className="sp-catalog-actions">
               <button className="sp-button sp-button-light" type="button" onClick={exportCsv} disabled={productsState !== "loaded" || products.length === 0}><Icon name="download" /> تصدير CSV</button>
               <button className="sp-button sp-button-light" type="button" onClick={() => window.print()} disabled={productsState !== "loaded" || products.length === 0}>طباعة / PDF</button>
-              <button className="sp-button sp-button-primary" type="button" onClick={() => { setEditingId(null); setEditor({ ...EMPTY_PRODUCT, customCosts: [] }); setProductError(""); setProductNotice(""); scrollTo("details"); }}><Icon name="plus" /> تسعير منتج جديد</button>
+              <button className="sp-button sp-button-primary" type="button" onClick={() => startNewProduct(true)}><Icon name="plus" /> تسعير منتج جديد</button>
             </div>
           </div>
 
@@ -654,7 +926,7 @@ function App() {
             ) : productsState === "error" ? (
               <div className="sp-empty"><span className="sp-empty-icon"><Icon name="refresh" /></span><h3>تعذر تحميل الكتالوج</h3><p>لم نتمكن من جلب منتجات جلسة متجرك. تحقق من الاتصال ثم أعد المحاولة.</p><button type="button" className="sp-button sp-button-light" onClick={refreshProducts}>إعادة تحميل المنتجات</button></div>
             ) : products.length === 0 ? (
-              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="package" /></span><h3>لا توجد منتجات محفوظة بعد</h3><p>احفظ أول منتج من محرر التسعير التفصيلي لتظهر تكاليفه وسعره هنا.</p><button type="button" className="sp-button sp-button-primary" onClick={() => { setEditingId(null); setEditor({ ...EMPTY_PRODUCT, customCosts: [] }); scrollTo("details"); }}>ابدأ بإضافة منتج <Icon name="plus" /></button></div>
+              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="package" /></span><h3>لا توجد منتجات محفوظة بعد</h3><p>احفظ أول منتج من محرر التسعير التفصيلي لتظهر تكاليفه وسعره هنا.</p><button type="button" className="sp-button sp-button-primary" onClick={() => startNewProduct(true)}>ابدأ بإضافة منتج <Icon name="plus" /></button></div>
             ) : filteredProducts.length === 0 ? (
               <div className="sp-empty"><span className="sp-empty-icon"><Icon name="search" /></span><h3>لا توجد نتائج مطابقة</h3><p>جرّب كلمة بحث أخرى أو غيّر عوامل التصفية.</p><button type="button" className="sp-button sp-button-light" onClick={() => { setSearch(""); setCategoryFilter("all"); setMarginFilter("all"); }}>مسح عوامل التصفية</button></div>
             ) : (

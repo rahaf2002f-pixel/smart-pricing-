@@ -18,6 +18,8 @@ const pricingProductSchema = new mongoose.Schema(
     packagingCost: { type: Number, required: true, min: 0, max: 1_000_000 },
     deliveryCost: { type: Number, required: true, min: 0, max: 1_000_000 },
     paymentFee: { type: Number, required: true, min: 0, max: 1_000_000 },
+    paymentFeeType: { type: String, enum: ["fixed", "percentage"], default: "fixed" },
+    paymentFeeAmount: { type: Number, default: 0, min: 0 },
     marketingCost: { type: Number, required: true, min: 0, max: 1_000_000 },
     operationalCost: { type: Number, required: true, min: 0, max: 1_000_000 },
     customCosts: { type: [customCostSchema], default: [] },

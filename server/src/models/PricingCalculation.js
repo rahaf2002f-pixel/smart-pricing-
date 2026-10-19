@@ -12,6 +12,7 @@ const pricingCalculationSchema = new mongoose.Schema(
     packagingCost: { type: Number, required: true, min: 0 },
     deliveryCost: { type: Number, required: true, min: 0 },
     paymentFee: { type: Number, required: true, min: 0 },
+    paymentFeeType: { type: String, enum: ["fixed", "percentage"], default: "fixed" },
     targetMarginPercent: { type: Number, required: true, min: 0, max: 90 },
     comparisonSellingPrice: { type: Number, required: true, min: 0 },
     totalCost: { type: Number, required: true, min: 0 },
