@@ -1,0 +1,1 @@
+- [Reference fidelity](reference-fidelity.md) — Match the supplied screenshot artwork rather than substituting a similar logo; sidebar additions stay within existing functions.
