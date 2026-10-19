@@ -32,7 +32,7 @@ app.use("/api", (_req, res) => {
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(productionAssets));
-  app.get("*", (_req, res) => {
+  app.get("/{*path}", (_req, res) => {
     res.sendFile(resolve(productionAssets, "index.html"));
   });
 }
