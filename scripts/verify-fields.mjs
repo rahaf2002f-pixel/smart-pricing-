@@ -6,6 +6,7 @@ import "dotenv/config";
 import mongoose from "mongoose";
 import User from "../server/src/models/User.js";
 import AuthSession from "../server/src/models/AuthSession.js";
+import Notification from "../server/src/models/Notification.js";
 import PricingProduct from "../server/src/models/PricingProduct.js";
 import PricingCalculation from "../server/src/models/PricingCalculation.js";
 import PricingSettings from "../server/src/models/PricingSettings.js";
@@ -66,7 +67,7 @@ async function click(selector) {
 }
 const text = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)})?.innerText`);
 const value = (selector) => evaluate(`document.querySelector(${JSON.stringify(selector)})?.value`);
-const money = async (selector) => parseFloat((await text(selector)).replaceAll(",", ""));
+const money = async (selector) => parseFloat((await text(selector)).replaceAll(",", "").replace(/[\u061c\u200e\u200f]/g, ""));
 const near = (actual, expected) => assert(Math.abs(actual - expected) < 0.002, `${actual} != ${expected}`);
 const checks = [];
 async function check(name, task) {
@@ -80,7 +81,7 @@ async function cleanupTestAccount() {
   await mongoose.connect(process.env.MONGODB_URI);
   const account = await User.findOne({ email: testEmail });
   if (account) {
-    await Promise.all([AuthSession, PricingProduct, PricingCalculation, PricingSettings].map((model) => model.deleteMany({ userId: account._id })));
+    await Promise.all([AuthSession, Notification, PricingProduct, PricingCalculation, PricingSettings].map((model) => model.deleteMany({ userId: account._id })));
     await User.deleteOne({ _id: account._id });
   }
   await mongoose.disconnect();
@@ -95,7 +96,7 @@ await send("Page.navigate", { url: `https://${process.env.REPLIT_DEV_DOMAIN}/` }
 try {
   await waitFor(`document.querySelector(".spa-form")`);
   const password = randomBytes(24).toString("base64url");
-  const result = await evaluate(`fetch("/api/auth/register", {method:"POST",headers:{"Content-Type":"application/json","X-Smart-Pricing":"1"},body:JSON.stringify(${JSON.stringify({fullName:"حساب اختبار الخانات",email:testEmail,password,confirmPassword:password})})}).then(r=>r.status)`);
+  const result = await evaluate(`fetch("/api/auth/register", {method:"POST",headers:{"Content-Type":"application/json","X-Smart-Pricing":"1","Accept-Language":"ar"},body:JSON.stringify(${JSON.stringify({fullName:"حساب اختبار الخانات",email:testEmail,password,confirmPassword:password})})}).then(r=>r.status)`);
   assert.equal(result, 201);
   await evaluate(`window.__spFieldsReload=true`);
   await send("Page.reload");
@@ -149,7 +150,7 @@ try {
     await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="calculator"`);
     await click(".sp-brand");
     await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="start"`);
-    await click(".sp-notice");
+    await click('.sp-side-link[href="#store-settings"]');
     await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="store-settings"`);
     await click('.sp-sidebar a[href="#start"]');
   });
@@ -254,7 +255,7 @@ try {
     await waitFor(`document.querySelector("#catalog").innerText.includes(${JSON.stringify(name)})`);
   });
   await check("Catalog edit, save and cancel", async () => {
-    await click(`button[aria-label="تعديل ${name}"]`);
+    await click(`button[aria-label="تعديل المنتج ${name}"]`);
     assert.equal(await value("#product-name"), name);
     await fill("#editor-selling", 28);
     await click(".sp-editor-actions button[type=submit]");
@@ -288,7 +289,7 @@ try {
     assert(await evaluate(`window.__printCalled`));
   });
   await check("AI advice button with real backend/provider request", async () => {
-    await click(`button[aria-label="تعديل ${name}"]`);
+    await click(`button[aria-label="تعديل المنتج ${name}"]`);
     await click("#ai-advice button");
     await waitFor(`document.querySelector(".sp-advice-result") || document.querySelector("#ai-advice [role=alert]")`, 22000);
     const error = await text("#ai-advice [role=alert]");

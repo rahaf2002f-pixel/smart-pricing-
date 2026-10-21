@@ -29,7 +29,8 @@ test("scrypt uses unique salts, verifies correctly and rejects malformed hashes"
 
 test("public account output excludes password hashes, workspace identifiers and session tokens", () => {
   const result = publicUser({ _id: "id", fullName: "متجر", email: "test@example.invalid", profileCompleted: true, profileCompletedAt: new Date(), passwordHash: "not-public", workspaceId: "private" });
-  assert.deepEqual(Object.keys(result).sort(), ["id", "fullName", "email", "profileCompleted", "profileCompletedAt"].sort());
+  assert.deepEqual(Object.keys(result).sort(), ["id", "fullName", "email", "profileCompleted", "profileCompletedAt", "preferredLanguage"].sort());
+  assert.equal(result.preferredLanguage, "ar");
 });
 
 test("server cookie policy is HttpOnly, SameSite Lax and Secure for non-local hosts", () => {

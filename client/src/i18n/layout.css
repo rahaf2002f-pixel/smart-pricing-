@@ -1,0 +1,134 @@
+/* Locale adaptation layered on top of the imported Stitch screens. */
+.stitch-pricing[dir="ltr"] {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .sp-sidebar {
+  right: auto;
+  left: 0;
+}
+.stitch-pricing[dir="ltr"] .sp-main {
+  margin-right: 0;
+  margin-left: 205px;
+}
+.stitch-pricing[dir="ltr"] .sp-side-label {
+  margin: 0 5px 12px;
+}
+.stitch-pricing[dir="ltr"] .sp-sidebar-group .sp-side-group-label {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .sp-side-link:hover {
+  transform: translateX(2px);
+}
+.stitch-pricing[dir="ltr"] .sp-side-link svg[name="arrow"],
+.stitch-pricing[dir="ltr"] .sp-logout svg,
+.stitch-pricing[dir="ltr"] .sp-primary-cta svg:last-child,
+.stitch-pricing[dir="ltr"] .spa-primary svg {
+  transform: scaleX(-1);
+}
+.stitch-pricing[dir="ltr"] .sp-table {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .sp-table th,
+.stitch-pricing[dir="ltr"] .sp-table td {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .sp-align-left {
+  text-align: right;
+}
+.stitch-pricing[dir="ltr"] .sp-search input {
+  padding: 0 35px 0 12px;
+}
+.stitch-pricing[dir="ltr"] .sp-search svg {
+  right: 11px;
+  left: auto;
+}
+.stitch-pricing[dir="ltr"] .sp-compare-stats > div + div {
+  padding-right: 0;
+  padding-left: 15px;
+  border-right: 0;
+  border-left: 1px solid #e9edf2;
+}
+.stitch-pricing[dir="ltr"] .sp-editor-price strong,
+.stitch-pricing[dir="ltr"] .sp-editor-price > div b {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .sp-distribution-legend,
+.stitch-pricing[dir="ltr"] .sp-product-card-meta {
+  direction: ltr;
+}
+.stitch-pricing[dir="ltr"] .sp-logout {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .sp-pagination > div {
+  direction: ltr;
+}
+.stitch-pricing[dir="ltr"] .spa-page {
+  text-align: left;
+}
+.stitch-pricing[dir="ltr"] .spa-account-aside {
+  align-items: flex-start;
+}
+.stitch-pricing[dir="ltr"] .spa-switch {
+  direction: ltr;
+}
+.stitch-pricing[dir="ltr"] .spa-reveal {
+  padding-right: 2px;
+  padding-left: 0;
+}
+.stitch-pricing[dir="ltr"] .spa-profile-list > div {
+  text-align: left;
+}
+.spa-page[dir="ltr"] {
+  text-align: left;
+}
+.spa-page[dir="ltr"] .spa-account-aside {
+  direction: ltr;
+}
+.spa-page[dir="ltr"] .spa-card {
+  direction: ltr;
+}
+.spa-page[dir="ltr"] .spa-avatar {
+  font-family: "Plus Jakarta Sans", sans-serif;
+}
+.sp-language-switcher {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.sp-language-switcher label {
+  color: #65738a;
+  font-size: 11px;
+  font-weight: 600;
+}
+.sp-language-switcher select {
+  min-height: 34px;
+  max-width: 116px;
+  padding: 4px 9px;
+  border: 1px solid #dce5e9;
+  border-radius: 10px;
+  background: #f8fbfa;
+  color: #263b4a;
+  font: 600 12px "IBM Plex Sans Arabic", sans-serif;
+}
+.sp-language-switcher select:focus-visible {
+  outline: 2px solid #2bcea6;
+  outline-offset: 2px;
+}
+@media (max-width: 1000px) {
+  .stitch-pricing[dir="ltr"] .sp-main { margin-left: 0; }
+}
+@media (max-width: 760px) {
+  .sp-language-switcher { gap: 0; }
+  .sp-language-switcher > span:not(.sp-sr-only) { display:none; }
+  .sp-header-side .sp-currency { display:none; }
+  .sp-language-switcher label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .sp-language-switcher select { min-height: 36px; max-width: 100px; padding: 3px 7px; font-size: 16px; }
+}
+@media (max-width: 380px) {
+  .sp-currency { display: none; }
+  .sp-language-switcher select { max-width: 96px; }
+  .sp-header-side { gap: 3px; }
+  .sp-brand strong { max-width: 94px; }
+}

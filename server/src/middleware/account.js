@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import AuthSession from "../models/AuthSession.js";
+import Notification from "../models/Notification.js";
 import { hashSessionToken } from "../services/auth.js";
 
 export const AUTH_COOKIE = "sp_account";
@@ -8,7 +9,7 @@ export const SESSION_LIFETIME = 7 * 24 * 60 * 60 * 1000;
 let indexesReady = false;
 
 export async function initializeAccounts() {
-  await Promise.all([User.init(), AuthSession.init()]);
+  await Promise.all([User.init(), AuthSession.init(), Notification.init()]);
   indexesReady = true;
 }
 

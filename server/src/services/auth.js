@@ -49,6 +49,7 @@ export function publicUser(user) {
     fullName: user.fullName,
     email: user.email,
     profileCompleted: user.profileCompleted,
+    preferredLanguage: user.preferredLanguage || "ar",
     profileCompletedAt: user.profileCompletedAt,
   };
 }

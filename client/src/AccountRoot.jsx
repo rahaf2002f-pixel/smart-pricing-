@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import App from "./App.jsx";
 import { getCurrentUser, logoutAccount } from "./services/authApi.js";
 import { setPricingAccount } from "./services/pricingApi.js";
+import { useI18n } from "./i18n/I18nProvider.jsx";
+import { setNotificationAccount } from "./services/notificationsApi.js";
 
 export default function AccountRoot() {
+  const { t, dir, bindAccount } = useI18n();
   const [user, setUser] = useState(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
@@ -19,6 +22,7 @@ export default function AccountRoot() {
       try {
         const result = await getCurrentUser();
         if (!active) return;
+        bindAccount(result.user);
         if (force || result.user?.id !== currentUser.current?.id) {
           currentUser.current = result.user;
           setUser(result.user);
@@ -42,9 +46,10 @@ export default function AccountRoot() {
       window.removeEventListener("sp-account-changed", refresh);
       window.removeEventListener("focus", checkOnFocus);
     };
-  }, [retry]);
+  }, [retry, bindAccount]);
 
   function authenticated(nextUser, message) {
+    bindAccount(nextUser);
     currentUser.current = nextUser;
     window.history.replaceState(null, "", "#account");
     setNotice(message || "");
@@ -59,6 +64,7 @@ export default function AccountRoot() {
       await logoutAccount();
       window.history.replaceState(null, "", "#signin");
       currentUser.current = null;
+      bindAccount(null);
       setUser(null);
       setNotice("تم تسجيل الخروج بأمان.");
       setError("");
@@ -70,11 +76,12 @@ export default function AccountRoot() {
   }
 
   setPricingAccount(user?.id ?? null);
+  setNotificationAccount(user?.id ?? null);
   if (checking || (error && !user)) {
-    return <div className="spa-session-loading" dir="rtl">
-      {checking ? <p role="status">جارٍ التحقق من الحساب المحفوظ…</p> : <>
-        <p role="alert">{error}</p>
-        <button className="spa-primary" type="button" onClick={() => { setChecking(true); setRetry((value) => value + 1); }}>إعادة المحاولة</button>
+    return <div className="spa-session-loading" dir={dir}>
+      {checking ? <p role="status">{t("جارٍ التحقق من الحساب المحفوظ…")}</p> : <>
+        <p role="alert">{t(error)}</p>
+        <button className="spa-primary" type="button" onClick={() => { setChecking(true); setRetry((value) => value + 1); }}>{t("إعادة المحاولة")}</button>
       </>}
     </div>;
   }

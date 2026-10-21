@@ -35,7 +35,44 @@ the frontend.
 - Sessions use HttpOnly cookies and hashed tokens in MongoDB, with a seven-day
   expiry. Passwords and authentication tokens must never be logged.
 
-## MongoDB configuration
+## Languages
+
+- Visual refinements keep the original logo and navy/mint palette. Account-entry
+  controls are compact but retain 44px touch areas and 16px mobile input text.
+
+- The same application supports Arabic (default, RTL) and English (LTR).
+  Static UI catalogs live in `client/src/i18n/locales/`; API message translations
+  live in `shared/i18n/messages.js`. Add both translations for every new UI message.
+- Guest language is stored in the browser. Authenticated language changes are
+  persisted to the user's MongoDB record via `PATCH /api/auth/preferences`.
+  A saved account preference takes precedence on sign-in; logout keeps the current
+  browser language. Changing language must never remount forms or change values.
+- API requests send `Accept-Language`. Only public response messages/errors are
+  localized; user-entered names, categories and numeric data remain unchanged.
+  OpenRouter advice is requested in the current language without changing metrics.
+
+## Notifications
+
+- The header bell displays real account, product, save, validation, loss/margin
+  and AI events. Account notifications/read state are owned by User ID in MongoDB.
+- Unique `(userId,eventKey)` indexes prevent repeat events. Deletion is soft:
+  the tombstone prevents a refresh/retried event from recreating a deleted alert.
+  Calculator autosave and comparison warnings coalesce once per day per type.
+- Updates are event-driven after operations, on opening the bell, manual refresh
+  and throttled window focus/visibility; there is no continuous polling or claim
+  of real-time delivery. The feed supports pagination and unread counts.
+- Guest login/validation errors and failed notification writes are explicitly
+  local-only. Logged-in failed writes are retried from memory on refresh/focus.
+  Offline notices cannot be saved to MongoDB until connectivity returns.
+- The user requested a clearly labelled test notification. It is created once
+  per account (or shown once per guest tab); it never claims a real financial
+  event. The panel's explicit test button can re-enable that same demo record
+  without creating duplicates. Normal deleted events remain tombstoned.
+- APIs: `GET /api/notifications`, `PATCH /api/notifications/read-all`,
+  `PATCH /api/notifications/:id/read`, `DELETE /api/notifications/:id`,
+  `POST /api/notifications/client-events` (only whitelisted error event codes).
+
+## MongoDB connection
 
 Set `MONGODB_URI` in Replit Secrets before expecting persistent storage. For local
 development, copy `.env.example` to `.env` and set the Atlas connection URI there.

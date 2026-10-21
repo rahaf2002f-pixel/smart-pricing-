@@ -7,7 +7,9 @@ import productsRoutes from "./routes/products.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import adviceRoutes from "./routes/advice.routes.js";
 import authRoutes from "./routes/auth.routes.js";
+import notificationRoutes from "./routes/notifications.routes.js";
 import { loadAccount, protectWorkspace, sameOriginOnly } from "./middleware/account.js";
+import { localizeResponse } from "./middleware/language.js";
 
 const app = express();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -16,6 +18,7 @@ const productionAssets = resolve(clientDirectory, "dist");
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
+app.use("/api", localizeResponse);
 app.use(express.json({ limit: "16kb" }));
 app.get("/api/health", (_req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
@@ -26,6 +29,7 @@ app.get("/api/health", (_req, res) => {
 });
 app.use("/api", sameOriginOnly, loadAccount);
 app.use("/api/auth", authRoutes);
+app.use("/api/notifications", protectWorkspace, notificationRoutes);
 app.use("/api/pricing", protectWorkspace, pricingRoutes);
 app.use("/api/pricing/settings", settingsRoutes);
 app.use("/api/pricing/advice", adviceRoutes);

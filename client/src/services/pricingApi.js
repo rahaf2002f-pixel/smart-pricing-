@@ -1,9 +1,20 @@
+import { getLanguage } from "../i18n/runtime.js";
+import { notifyClient, refreshNotifications } from "./notificationsApi.js";
+
 let currentAccountId = null;
 export function setPricingAccount(accountId) { currentAccountId = accountId; }
 function workspaceFetch(url, options = {}) {
+  const target = url.includes("/products") ? "details" : url.includes("/settings") ? "store-settings" : url.includes("/advice") ? "ai-advice" : "calculator";
   return fetch(url, { ...options, cache: "no-store", headers: {
-    ...options.headers, "X-SP-Account": currentAccountId || "guest",
-  } });
+    ...options.headers, "X-SP-Account": currentAccountId || "guest", "Accept-Language": getLanguage(),
+  } }).then((response) => {
+    if (response.ok && options.method && options.method !== "GET") refreshNotifications();
+    if (!response.ok && response.status !== 404 && response.status !== 401) notifyClient(response.status === 400 ? "validation_error" : "save_failed", target);
+    return response;
+  }).catch(() => {
+    notifyClient("connection_error", target);
+    throw new Error("تعذر الاتصال بالخادم.");
+  });
 }
 
 export async function getCalculation(sessionId) {

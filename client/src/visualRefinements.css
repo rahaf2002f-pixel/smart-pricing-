@@ -1,0 +1,98 @@
+/* Focused visual refinements — keep the imported Smart Pricing screens intact. */
+/* Compact account entry screens without affecting profile readability. */
+.sp-main[data-active-section="start"] > #start .sp-start-account {
+  max-width: 790px;
+}
+.sp-start-account .spa-form-side {
+  padding: clamp(18px, 2.6vw, 27px);
+}
+.sp-start-account .spa-form {
+  gap: 12px;
+}
+.sp-start-account .spa-input-wrap,
+.sp-start-account .spa-primary,
+.sp-start-account .spa-secondary {
+  min-height: 46px;
+}
+.spa-card:not(.spa-card-compact):not(.spa-account-card) {
+  width: min(890px, 100%);
+}
+.spa-card-compact {
+  width: min(640px, 100%);
+  padding: clamp(23px, 4.5vw, 38px);
+}
+.sp-main[data-active-section="signin"] .spa-card {
+  width: min(640px, 100%);
+}
+.spa-card-compact .spa-form {
+  gap: 13px;
+}
+.spa-card-compact .spa-heading {
+  margin-top: 27px;
+}
+.spa-form-side {
+  padding: clamp(23px, 3.5vw, 38px);
+}
+.spa-heading {
+  margin: 24px 0 18px;
+}
+.spa-form-side .spa-heading h1,
+.spa-card-compact h1 {
+  font-size: clamp(24px, 2.4vw, 28px);
+}
+.spa-input-wrap {
+  min-height: 46px;
+  gap: 9px;
+  padding-inline: 12px;
+}
+.spa-input-wrap input {
+  height: 44px;
+}
+.spa-primary,
+.spa-secondary {
+  min-height: 46px;
+  padding-block: 8px;
+  padding-inline: 15px;
+}
+.spa-reveal {
+  min-height: 44px;
+}
+@media (max-width: 760px) {
+  .sp-main[data-active-section="start"] > #start .sp-start-account {
+    max-width: 100%;
+  }
+  .spa-card:not(.spa-card-compact):not(.spa-account-card) {
+    width: min(540px, 100%);
+  }
+  .spa-card-compact {
+    width: min(540px, 100%);
+    padding: clamp(21px, 5vw, 30px);
+  }
+  .sp-main[data-active-section="signin"] .spa-card {
+    width: min(540px, 100%);
+  }
+  .spa-form-side {
+    padding: clamp(21px, 5vw, 30px);
+  }
+  .spa-input-wrap input,
+  .spa-input-wrap.is-ltr input {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .spa-card-compact {
+    padding: 21px 17px;
+  }
+  .spa-form-side {
+    padding: 21px 17px;
+  }
+  .spa-form {
+    gap: 12px;
+  }
+  .spa-input-wrap,
+  .spa-primary,
+  .spa-secondary {
+    min-height: 46px;
+  }
+}

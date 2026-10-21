@@ -1,0 +1,236 @@
+.sp-notification-root {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: #183548;
+  font-family: "IBM Plex Sans Arabic", sans-serif;
+  z-index: 30;
+}
+
+.sp-notification-trigger {
+  position: relative;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #dcebe5;
+  border-radius: 13px;
+  color: #28483f;
+  background: #f7fbf9;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+.sp-notification-trigger:hover { transform: translateY(-1px); border-color: #b9ded1; background: #eff8f4; }
+.sp-notification-trigger:focus-visible,
+.sp-notification-panel button:focus-visible {
+  outline: 3px solid #2bcea64f;
+  outline-offset: 2px;
+}
+.sp-notification-trigger svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.sp-notification-badge {
+  position: absolute;
+  inset-block-start: -5px;
+  inset-inline-end: -6px;
+  display: grid;
+  min-width: 18px;
+  height: 18px;
+  place-items: center;
+  padding-inline: 4px;
+  border: 2px solid #fbfdfc;
+  border-radius: 999px;
+  color: #fff;
+  background: #c66a54;
+  font: 700 10px/1 "Plus Jakarta Sans", sans-serif;
+}
+.sp-notification-new-dot {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 7px;
+  width: 6px;
+  height: 6px;
+  border: 1px solid #f7fbf9;
+  border-radius: 50%;
+  background: #2bcea6;
+}
+.sp-notification-panel {
+  position: absolute;
+  inset-block-start: calc(100% + 10px);
+  inset-inline-end: 0;
+  display: flex;
+  width: min(390px, calc(100vw - 28px));
+  max-height: min(620px, calc(100dvh - 94px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #dce9e4;
+  border-radius: 17px;
+  color: #203a49;
+  background: #fbfdfc;
+  box-shadow: 0 18px 54px #152f3d20, 0 3px 12px #152f3d0b;
+  animation: sp-notification-arrive .17s ease-out both;
+}
+.sp-notification-heading {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 17px;
+  border-bottom: 1px solid #e7efeb;
+  background: #f5faf7;
+}
+.sp-notification-heading h2 { margin: 0; color: #19394a; font-size: 17px; font-weight: 750; line-height: 1.4; }
+.sp-notification-heading p { margin: 3px 0 0; color: #71837d; font-size: 12px; line-height: 1.5; }
+.sp-notification-heading-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 5px; }
+.sp-notification-icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: #617770;
+  background: transparent;
+  cursor: pointer;
+}
+.sp-notification-icon-button:hover:not(:disabled) { border-color: #dcebe5; color: #254d42; background: #fff; }
+.sp-notification-icon-button:disabled { opacity: .48; cursor: wait; }
+.sp-notification-icon-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.sp-notification-mark-all {
+  min-height: 34px;
+  padding: 5px 9px;
+  border: 1px solid #d5e9df;
+  border-radius: 9px;
+  color: #256b58;
+  background: #eff8f3;
+  font: 650 12px "IBM Plex Sans Arabic", sans-serif;
+  cursor: pointer;
+}
+.sp-notification-mark-all:hover:not(:disabled) { background: #e4f4ec; }
+.sp-notification-mark-all:disabled { opacity: .5; cursor: wait; }
+.sp-notification-alert {
+  margin: 10px 12px 0;
+  padding: 9px 11px;
+  border: 1px solid #efd2ca;
+  border-radius: 10px;
+  color: #934936;
+  background: #fff5f1;
+  font-size: 13px;
+  line-height: 1.65;
+}
+.sp-notification-alert.is-local { border-color: #e9d8b9; color: #775829; background: #fff9eb; }
+.sp-notification-alert button {
+  margin-inline-start: 7px;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-weight: 750;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.sp-notification-list {
+  min-height: 80px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.sp-notification-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 8px;
+  padding: 14px 16px 13px;
+  border-bottom: 1px solid #edf2ef;
+  background: #fbfdfc;
+  transition: background .15s ease;
+}
+.sp-notification-item:hover { background: #f5faf7; }
+.sp-notification-item.is-unread { background: #f2faf6; }
+.sp-notification-item.is-local-only { background: #fffaf0; }
+.sp-notification-item-main {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: start;
+  cursor: pointer;
+}
+.sp-notification-item-main:focus-visible { border-radius: 5px; outline: 2px solid #2bcea66a; outline-offset: 3px; }
+.sp-notification-item-title { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: #264257; font-size: 15px; font-weight: 750; line-height: 1.5; }
+.sp-notification-unread-mark { width: 7px; height: 7px; flex: 0 0 auto; margin-top: 7px; border-radius: 50%; background: #29a982; }
+.sp-notification-item-message { display: block; margin-top: 4px; color: #60746f; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
+.sp-notification-item-meta { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-top: 8px; color: #8a9992; font-size: 11px; line-height: 1.5; }
+.sp-notification-local-tag { padding: 2px 6px; border: 1px solid #e7d6ae; border-radius: 999px; color: #785e2d; background: #fff8e7; }
+.sp-notification-level { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: #7eb6a1; }
+.sp-notification-level.warning { background: #d29a46; }
+.sp-notification-level.error { background: #c66a54; }
+.sp-notification-delete { width: 34px; height: 34px; }
+.sp-notification-delete:hover:not(:disabled) { color: #a84b3d; background: #fff1ed; }
+.sp-notification-state {
+  display: grid;
+  min-height: 156px;
+  align-content: center;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px;
+  color: #71827c;
+  text-align: center;
+}
+.sp-notification-state strong { color: #385247; font-size: 15px; }
+.sp-notification-state p { max-width: 270px; margin: 0; font-size: 13px; line-height: 1.7; }
+.sp-notification-state button,.sp-notification-more {
+  min-height: 40px;
+  padding: 8px 15px;
+  border: 1px solid #d4e8df;
+  border-radius: 10px;
+  color: #286b59;
+  background: #f1f9f5;
+  font: 700 13px "IBM Plex Sans Arabic", sans-serif;
+  cursor: pointer;
+}
+.sp-notification-state button:hover,.sp-notification-more:hover:not(:disabled) { background: #e6f4ed; }
+.sp-notification-more-wrap { display: flex; justify-content: center; padding: 11px; border-top: 1px solid #edf2ef; }
+.sp-notification-more { width: 100%; }
+.sp-notification-more:disabled { opacity: .55; cursor: wait; }
+.sp-notification-skeleton { width: 100%; padding: 16px; }
+.sp-notification-skeleton i { display: block; height: 9px; margin: 9px 0; border-radius: 9px; background: linear-gradient(90deg, #edf3ef, #f7faf8, #edf3ef); background-size: 200% 100%; animation: sp-notification-shimmer 1.3s ease-in-out infinite; }
+.sp-notification-skeleton i:nth-child(2) { width: 76%; }
+.sp-notification-skeleton i:nth-child(3) { width: 48%; }
+.sp-notification-footer-note { padding: 9px 14px; border-top: 1px solid #edf2ef; color: #8b9993; background: #f8fbf9; font-size: 11px; line-height: 1.5; }
+.sp-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  clip-path: inset(50%) !important;
+}
+@keyframes sp-notification-arrive { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes sp-notification-shimmer { to { background-position: -200% 0; } }
+@media (max-width: 640px) {
+  .sp-notification-root { position: static; }
+  .sp-notification-panel {
+    position: fixed;
+    z-index: 200;
+    inset-block-start: max(58px, env(safe-area-inset-top));
+    inset-inline: 10px;
+    width: auto;
+    max-height: calc(100dvh - max(72px, env(safe-area-inset-top)) - 10px);
+    border-radius: 15px;
+  }
+  .sp-notification-heading { min-height: 74px; padding-inline: 14px; }
+  .sp-notification-item { padding: 15px 14px; }
+  .sp-notification-item-title { font-size: 16px; }
+  .sp-notification-item-message { font-size: 16px; }
+  .sp-notification-item-meta { font-size: 12px; }
+  .sp-notification-icon-button { width: 40px; height: 40px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-notification-panel,.sp-notification-skeleton i { animation: none; }
+  .sp-notification-trigger { transition: none; }
+}

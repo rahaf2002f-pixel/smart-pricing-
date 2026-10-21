@@ -1,6 +1,7 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import PricingProduct from "../models/PricingProduct.js";
+import { notifyProduct } from "../services/notifications.js";
 import { workspaceFilter } from "../middleware/account.js";
 import {
   calculateProductPricing,
@@ -84,6 +85,7 @@ router.post("/:sessionId", async (req, res, next) => {
       ...values,
       ...computed,
     });
+    await notifyProduct(req.user._id, product, "product_created", values);
     return res.status(201).json({ product: serialize(product) });
   } catch (error) {
     return next(error);
@@ -107,6 +109,7 @@ router.put("/:sessionId/:productId", async (req, res, next) => {
       { new: true, runValidators: true },
     ).lean();
     if (!product) return res.status(404).json({ message: "المنتج غير موجود." });
+    await notifyProduct(req.user._id, product, "product_updated", values);
     return res.json({ product: serialize(product) });
   } catch (error) {
     return next(error);

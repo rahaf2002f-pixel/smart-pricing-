@@ -2,6 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import PricingCalculation from "../models/PricingCalculation.js";
 import { workspaceFilter } from "../middleware/account.js";
+import { notifySafely, notificationDay } from "../services/notifications.js";
 import {
   calculatePricing,
   validatePricingInputs,
@@ -86,6 +87,11 @@ router.put("/calculations/:sessionId", async (req, res, next) => {
         setDefaultsOnInsert: true,
       },
     ).lean();
+    await notifySafely(req.user._id, "calculation_saved", `calculator-saved:${notificationDay()}`);
+    if (calculation.comparisonSellingPrice > 0) {
+      if (calculation.comparisonProfit < -0.000001) await notifySafely(req.user._id, "calculator_loss", `calculator-loss:${notificationDay()}`);
+      else if (calculation.comparisonMarginPercent + 0.01 < calculation.targetMarginPercent) await notifySafely(req.user._id, "calculator_margin", `calculator-margin:${notificationDay()}`);
+    }
     return res.json(serialize(calculation));
   } catch (error) {
     return next(error);

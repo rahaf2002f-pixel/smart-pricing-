@@ -5,6 +5,7 @@ import { randomUUID, randomBytes } from "node:crypto";
 import mongoose from "mongoose";
 import User from "../server/src/models/User.js";
 import AuthSession from "../server/src/models/AuthSession.js";
+import Notification from "../server/src/models/Notification.js";
 import PricingProduct from "../server/src/models/PricingProduct.js";
 import PricingCalculation from "../server/src/models/PricingCalculation.js";
 import PricingSettings from "../server/src/models/PricingSettings.js";
@@ -182,7 +183,7 @@ try {
 } finally {
   const users = await User.find({ email: { $in: emails } }).select("_id").lean();
   const ids = users.map((user) => user._id);
-  await Promise.all([AuthSession, PricingProduct, PricingCalculation, PricingSettings].map((model) => model.deleteMany({ userId: { $in: ids } })));
+  await Promise.all([AuthSession, Notification, PricingProduct, PricingCalculation, PricingSettings].map((model) => model.deleteMany({ userId: { $in: ids } })));
   await User.deleteMany({ _id: { $in: ids } });
   await mongoose.disconnect();
   await send("Network.clearBrowserCookies");

@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true, select: false },
   workspaceId: { type: String, required: true, default: randomUUID, unique: true, immutable: true, select: false },
   profileCompleted: { type: Boolean, required: true, default: true },
+  preferredLanguage: { type: String, enum: ["ar", "en"], default: "ar", required: true },
   profileCompletedAt: { type: Date, required: true, default: Date.now, immutable: true },
 }, { timestamps: true });
 

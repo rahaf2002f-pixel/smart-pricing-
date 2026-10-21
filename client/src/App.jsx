@@ -1,6 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import pricingLogo from "./assets/pricing-logo.png";
 import AccountPages from "./components/AccountPages.jsx";
+import { useI18n } from "./i18n/I18nProvider.jsx";
+import LanguageSwitcher from "./i18n/LanguageSwitcher.jsx";
+import NotificationBell from "./components/NotificationBell.jsx";
+import { translate, formatNumber as localizedNumber } from "./i18n/runtime.js";
+import "./i18n/layout.css";
 import { normalizeCalculatorInputs, sanitizeNumericInput, updateCalculatorInputs } from "./calculatorInputs.js";
 import {
   createProduct,
@@ -88,16 +93,11 @@ const EMPTY_PRODUCT = {
 };
 
 function formatKwd(value) {
-  return new Intl.NumberFormat("en-KW", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
-    .format(Number.isFinite(Number(value)) ? Number(value) : 0);
-}
-
-function formatPercent(value) {
-  return `${new Intl.NumberFormat("en", { maximumFractionDigits: 1 }).format(Number(value) || 0)}٪`;
+  return localizedNumber(Number.isFinite(Number(value)) ? Number(value) : 0, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
 function Money({ value, className = "" }) {
-  return <span className={`sp-money ${className}`}><b>{formatKwd(value)}</b><small>د.ك</small></span>;
+  return <span className={`sp-money ${className}`}><b>{formatKwd(value)}</b><small>{translate("د.ك")}</small></span>;
 }
 
 function Icon({ name }) {
@@ -138,8 +138,9 @@ function animatePricingLogo(event) {
 }
 
 function PricingArtwork() {
+  const { t } = useI18n();
   return (
-    <button className="sp-hero-artwork" type="button" aria-label="تحريك شعار التسعير الذكي" onClick={animatePricingLogo}>
+    <button className="sp-hero-artwork" type="button" aria-label={t("تحريك شعار التسعير الذكي")} onClick={animatePricingLogo}>
       <span className="sp-art-halo" aria-hidden="true" />
       <span className="sp-art-frame" aria-hidden="true">
         <img src={pricingLogo} alt="" width="80" height="80" draggable="false" />
@@ -211,6 +212,17 @@ function isUntouchedProduct(editor) {
 }
 
 function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, onUserUpdated, onLogout }) {
+  const { language, dir, t, formatNumber, formatPercent: formatPercentHook } = useI18n();
+  const formatKwd = (value) => formatNumber(Number.isFinite(Number(value)) ? Number(value) : 0, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+  const formatPercent = (value) => formatPercentHook(Number(value) || 0);
+  const adviceRequestLanguage = useRef(language);
+  adviceRequestLanguage.current = language;
+  useEffect(() => {
+    setAdvice("");
+    setAdviceLocale("");
+    setAdviceError("");
+    setAdviceLoading(false);
+  }, [language]);
   function currentSection() {
     const requested = sectionFromLocation();
     if (user && ["signup", "signin"].includes(requested)) return "account";
@@ -227,6 +239,7 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
   const [settingsError, setSettingsError] = useState("");
   const [discountPercent, setDiscountPercent] = useState("0");
   const [advice, setAdvice] = useState("");
+  const [adviceLocale, setAdviceLocale] = useState("");
   const [adviceError, setAdviceError] = useState("");
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
@@ -468,7 +481,7 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
     : results.suggestedSellingPrice > 0
       ? (results.suggestedProfit / results.suggestedSellingPrice) * 100
       : 0;
-  const marginHealth = sidebarMargin >= 30 ? "صحي جدًا" : sidebarMargin >= 20 ? "مقبول" : "بحاجة للمراجعة";
+  const marginHealth = t(sidebarMargin >= 30 ? "صحي جدًا" : sidebarMargin >= 20 ? "مقبول" : "بحاجة للمراجعة");
 
   function updateCalculatorField(key, rawValue) {
     setInputs((current) => updateCalculatorInputs(current, key, rawValue));
@@ -586,15 +599,19 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
     setAdvice("");
     setAdviceError("");
     setAdviceLoading(true);
+    const requestedLanguage = language;
     try {
       const result = await requestPricingAdvice(
         sessionRef.current,
         buildProductInput(),
         discountValue,
       );
-      setAdvice(result.advice);
+      if (requestedLanguage === adviceRequestLanguage.current && result.language === requestedLanguage) {
+        setAdvice(result.advice);
+        setAdviceLocale(requestedLanguage);
+      }
     } catch (error) {
-      setAdviceError(error.message || "تعذر الحصول على اقتراح الآن.");
+      if (requestedLanguage === adviceRequestLanguage.current) setAdviceError(error.message || "تعذر الحصول على اقتراح الآن.");
     } finally {
       setAdviceLoading(false);
     }
@@ -656,7 +673,7 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
   }
 
   async function removeProduct(product) {
-    if (!window.confirm(`هل تريد حذف «${product.name}» من الكتالوج؟`)) return;
+    if (!window.confirm(t("هل تريد حذف «{name}» من الكتالوج؟", { name: product.name }))) return;
     try {
       await deleteProduct(sessionRef.current, product.id);
       setProducts((current) => current.filter((item) => item.id !== product.id));
@@ -671,7 +688,7 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
   }
 
   function exportCsv() {
-    const headers = ["المنتج", "رمز المنتج", "التصنيف", "تكلفة الشراء", "إضافي", "إجمالي التكلفة", "سعر البيع", "ربح القطعة", "الهامش", "الكمية"];
+    const headers = ["المنتج", "رمز المنتج", "التصنيف", "تكلفة الشراء", "إضافي", "إجمالي التكلفة", "سعر البيع", "ربح القطعة", "الهامش", "الكمية"].map((header) => t(header));
     const rows = products.map((product) => [
       product.name, product.sku, product.category, product.purchaseCost,
       Number(product.totalCost) - Number(product.purchaseCost),
@@ -696,56 +713,56 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
     }));
   }
 
-  const connectionText = {
+  const connectionTextSource = {
     guest: "سجّل الدخول لتفعيل أدوات التسعير",
     checking: "جارٍ الاتصال",
     saving: "جارٍ حفظ الحسبة",
     connected: "الحسبة محفوظة",
     offline: "الحساب يعمل محليًا · تعذر الاتصال",
   }[connection];
+  const connectionText = t(connectionTextSource);
   const categories = [...new Set(products.map((product) => product.category).filter(Boolean))];
   const calculatorMaxMargin = Math.max(
     0,
     Math.min(90, 99.99 - (inputs.paymentFeeType === "percentage" ? Number(inputs.paymentFee) || 0 : 0)),
   );
-  const sidebarMarginText = formatPercent(sidebarMargin).replace("٪", "%");
+  const sidebarMarginText = formatPercent(sidebarMargin);
 
   return (
-    <div className="stitch-pricing" dir="rtl" lang="ar">
+    <div className="stitch-pricing" dir={dir} lang={language}>
       <header className="sp-header">
-        <a className="sp-brand" href="#start" aria-label="التسعير الذكي للمتاجر، الصفحة الرئيسية" onClick={(event) => { navigateTo("start", event); animatePricingLogo(event); }}>
+        <a className="sp-brand" href="#start" aria-label={t('التسعير الذكي للمتاجر، الصفحة الرئيسية')} onClick={(event) => { navigateTo("start", event); animatePricingLogo(event); }}>
           <div className="sp-mark" aria-hidden="true"><Icon name="sparkles" /></div>
-          <div><strong>التسعير الذكي للمتاجر</strong><small>Smart Pricing AI · GCC Engine</small></div>
+          <div><strong>{t('التسعير الذكي للمتاجر')}</strong><small>Smart Pricing AI · GCC Engine</small></div>
         </a>
         <div className="sp-header-side">
+          <LanguageSwitcher />
           <a className="sp-account-chip" href={user ? "#account" : "#signin"} onClick={(event) => navigateTo(user ? "account" : "signin", event)}>
             <span className="sp-account-mark"><Icon name="package" /></span>
-            <span><strong>{user?.fullName || "دخول الحساب"}</strong><small>{user ? "بيانات حسابك" : "مساحتك المحفوظة"}</small></span>
+            <span><strong>{user?.fullName || t("دخول الحساب")}</strong><small>{t(user ? "بيانات حسابك" : "مساحتك المحفوظة")}</small></span>
           </a>
-          <a className="sp-notice" href="#store-settings" onClick={(event) => navigateTo("store-settings", event)} aria-label="إعدادات الرسوم والعملة" title="إعدادات الرسوم والعملة">
-            <Icon name="settings" /><i />
-          </a>
-          <a className="sp-currency" href="#store-settings" onClick={(event) => navigateTo("store-settings", event)}><i /> الكويت · د.ك (KWD)</a>
+          <NotificationBell user={user} onNavigate={navigateTo} />
+          <a className="sp-currency" href="#store-settings" onClick={(event) => navigateTo("store-settings", event)}><i /> {t("الكويت · د.ك (KWD)")}</a>
           <span className={`sp-local connection-${connection}`} role="status" aria-live="polite" title={connectionText}>
             <i /><span className="sp-sr-only">{connectionText}</span>
           </span>
-          <button className="sp-menu-toggle" type="button" aria-label={sidebarOpen ? "إغلاق القائمة" : "فتح القائمة"} aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>
+          <button className="sp-menu-toggle" type="button" aria-label={t(sidebarOpen ? "إغلاق القائمة" : "فتح القائمة")} aria-expanded={sidebarOpen} onClick={() => setSidebarOpen((open) => !open)}>
             <Icon name={sidebarOpen ? "close" : "menu"} />
           </button>
         </div>
       </header>
 
-      <aside className={`sp-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label="التنقل داخل التسعير الذكي">
+      <aside className={`sp-sidebar${sidebarOpen ? " is-open" : ""}`} aria-label={t('التنقل داخل التسعير الذكي')}>
         <div className="sp-sidebar-content">
           {SIDEBAR_GROUPS.map(({ title, items }, groupIndex) => (
             <section className="sp-sidebar-group" key={title} aria-labelledby={`sidebar-group-${groupIndex}`}>
-              <h2 className="sp-side-group-label" id={`sidebar-group-${groupIndex}`}><i />{title}</h2>
-              <nav className="sp-side-nav" aria-label={title}>
+              <h2 className="sp-side-group-label" id={`sidebar-group-${groupIndex}`}><i />{t(title)}</h2>
+              <nav className="sp-side-nav" aria-label={t(title)}>
                 {items.map(({ id, label, icon, accent }) => {
                   const isActive = activeSection === id;
                   return (
-                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}${!user && id !== "start" ? " is-locked" : ""}`} href={`#${id}`} title={!user && id !== "start" ? "أنشئ حسابك أولًا لاستخدام هذه الأداة" : undefined} aria-current={isActive ? "location" : undefined} onClick={(event) => navigateTo(id, event)}>
-                      <Icon name={icon} /><span>{label}</span>
+                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}${!user && id !== "start" ? " is-locked" : ""}`} href={`#${id}`} title={!user && id !== "start" ? t("أنشئ حسابك أولًا لاستخدام هذه الأداة") : undefined} aria-current={isActive ? "location" : undefined} onClick={(event) => navigateTo(id, event)}>
+                      <Icon name={icon} /><span>{t(label)}</span>
                     </a>
                   );
                 })}
@@ -753,43 +770,43 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
             </section>
           ))}
           <section className="sp-sidebar-group" aria-labelledby="sidebar-group-account">
-            <h2 className="sp-side-group-label" id="sidebar-group-account"><i />الحساب</h2>
-            <nav className="sp-side-nav" aria-label="الحساب">
+            <h2 className="sp-side-group-label" id="sidebar-group-account"><i />{t("الحساب")}</h2>
+            <nav className="sp-side-nav" aria-label={t("الحساب")}>
               {(user ? [{ id: "account", label: "حسابي" }] : [{ id: "signup", label: "إنشاء حساب" }, { id: "signin", label: "تسجيل الدخول" }]).map(({ id, label }) => (
-                <a key={id} className={`sp-side-link${activeSection === id ? " is-active" : ""}`} href={`#${id}`} aria-current={activeSection === id ? "location" : undefined} onClick={(event) => navigateTo(id, event)}><Icon name="home" /><span>{label}</span></a>
+                <a key={id} className={`sp-side-link${activeSection === id ? " is-active" : ""}`} href={`#${id}`} aria-current={activeSection === id ? "location" : undefined} onClick={(event) => navigateTo(id, event)}><Icon name="home" /><span>{t(label)}</span></a>
               ))}
-              {user && <button className="sp-side-link sp-logout" type="button" onClick={onLogout} disabled={accountBusy}><Icon name="arrow" /><span>{accountBusy ? "جارٍ الخروج…" : "تسجيل الخروج"}</span></button>}
+              {user && <button className="sp-side-link sp-logout" type="button" onClick={onLogout} disabled={accountBusy}><Icon name="arrow" /><span>{t(accountBusy ? "جارٍ الخروج…" : "تسجيل الخروج")}</span></button>}
             </nav>
           </section>
         </div>
         <div className="sp-side-foot">
           <span className="sp-margin-icon"><Icon name="chart" /></span>
-          {user ? <div><small>{products.length ? "متوسط هامش الربح" : "هامش الحسبة الحالية"}</small><strong><bdi>{sidebarMarginText}</bdi><span>{marginHealth}</span></strong></div> : <div><small>مساحتك الخاصة</small><strong>أنشئ حسابك للبدء</strong></div>}
+          {user ? <div><small>{t(products.length ? "متوسط هامش الربح" : "هامش الحسبة الحالية")}</small><strong><bdi>{sidebarMarginText}</bdi><span>{marginHealth}</span></strong></div> : <div><small>{t('مساحتك الخاصة')}</small><strong>{t('أنشئ حسابك للبدء')}</strong></div>}
         </div>
       </aside>
 
       <main className="sp-main" data-active-section={activeSection} data-authenticated={Boolean(user)}>
-        {accountError && <p className="sp-alert" role="alert">{accountError}</p>}
+        {accountError && <p className="sp-alert" role="alert">{t(accountError)}</p>}
         <section className="sp-section" id="account-access">
           {["signup", "signin", "account"].includes(activeSection) && <AccountPages key={activeSection} mode={activeSection} user={user} notice={accountNotice} onAuthenticated={onAuthenticated} onUserUpdated={onUserUpdated} navigateTo={navigateTo} />}
         </section>
         <section className="sp-section sp-hero-section" id="start">
           <div className="sp-hero-card">
             <PricingArtwork />
-            <span className="sp-hero-locale"><i /> متجر الكويت <b>·</b> KWD <i /></span>
-            <h1>التسعير الذكي للمتاجر</h1>
-            <p>احسب تكلفة وسعر بيع منتجك بدقة، مع كشف فوري لرسوم KNET وهامش الربح الصافي.</p>
-            <div className="sp-benefits" aria-label="مميزات الحاسبة">
-              <span><Icon name="chart" /> حساب فوري للأرباح <Icon name="sparkles" /></span>
-              <span><Icon name="settings" /> كشف التكاليف وبوابات الدفع <Icon name="sparkles" /></span>
-              <span><Icon name="package" /> سعر البيع الأمثل <Icon name="chart" /></span>
+            <span className="sp-hero-locale"><i /> {t('متجر الكويت')} <b>·</b> KWD <i /></span>
+            <h1>{t('التسعير الذكي للمتاجر')}</h1>
+            <p>{t('احسب تكلفة وسعر بيع منتجك بدقة، مع كشف فوري لرسوم KNET وهامش الربح الصافي.')}</p>
+            <div className="sp-benefits" aria-label={t('مميزات الحاسبة')}>
+              <span><Icon name="chart" /> {t('حساب فوري للأرباح')} <Icon name="sparkles" /></span>
+              <span><Icon name="settings" /> {t('كشف التكاليف وبوابات الدفع')} <Icon name="sparkles" /></span>
+              <span><Icon name="package" /> {t('سعر البيع الأمثل')} <Icon name="chart" /></span>
             </div>
             <a className="sp-primary-cta" href={user ? "#calculator" : "#start-account"} onClick={(event) => navigateTo("calculator", event)}>
-              <Icon name="calculator" /><span>ابدأ التسعير الآن</span><Icon name="arrow" />
+              <Icon name="calculator" /><span>{t('ابدأ التسعير الآن')}</span><Icon name="arrow" />
             </a>
           </div>
           {!user && activeSection === "start" && <div className="sp-start-account" id="start-account">
-            <div className="sp-registration-heading"><h2>أدخل بياناتك وابدأ التسعير</h2><p>أنشئ حسابك مرة واحدة، أو سجّل الدخول إذا كان لديك حساب. بعدها تتفعّل لك جميع أدوات الموقع.</p></div>
+            <div className="sp-registration-heading"><h2>{t('أدخل بياناتك وابدأ التسعير')}</h2><p>{t('أنشئ حسابك مرة واحدة، أو سجّل الدخول إذا كان لديك حساب. بعدها تتفعّل لك جميع أدوات الموقع.')}</p></div>
             <AccountPages mode="signup" user={null} notice={accountNotice} onAuthenticated={onAuthenticated} onUserUpdated={onUserUpdated} navigateTo={navigateTo} />
           </div>}
         </section>
@@ -798,82 +815,82 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
           <div className="sp-heading">
             <div className="sp-heading-main">
               <div className="sp-title-icon"><Icon name="calculator" /></div>
-              <div><p className="sp-kicker">{activeSection === "market-comparison" ? "تحليل السعر · د.ك" : "محرك التسعير · د.ك"}</p><h2>{activeSection === "market-comparison" ? "مقارنة أسعار البيع" : "حاسبة تسعير المنتج"}</h2><p className="sp-subtitle">{activeSection === "market-comparison" ? "قارن أثر تغييرات السعر على الربح والهامش مباشرة." : "أدخل تكاليف القطعة وشاهد السعر والربح المتوقعين مباشرة."}</p></div>
+              <div><p className="sp-kicker">{t(activeSection === "market-comparison" ? "تحليل السعر · د.ك" : "محرك التسعير · د.ك")}</p><h2>{t(activeSection === "market-comparison" ? "مقارنة أسعار البيع" : "حاسبة تسعير المنتج")}</h2><p className="sp-subtitle">{t(activeSection === "market-comparison" ? "قارن أثر تغييرات السعر على الربح والهامش مباشرة." : "أدخل تكاليف القطعة وشاهد السعر والربح المتوقعين مباشرة.")}</p></div>
             </div>
             <div className="sp-heading-actions">
-              <a className="sp-button sp-button-light" href="#catalog" onClick={(event) => navigateTo("catalog", event)}>قائمة المنتجات <Icon name="package" /></a>
-              <a className="sp-button sp-button-light" href="#start" onClick={(event) => navigateTo("start", event)}>العودة للبداية <Icon name="arrow" /></a>
+              <a className="sp-button sp-button-light" href="#catalog" onClick={(event) => navigateTo("catalog", event)}>{t('قائمة المنتجات')} <Icon name="package" /></a>
+              <a className="sp-button sp-button-light" href="#start" onClick={(event) => navigateTo("start", event)}>{t('العودة للبداية')} <Icon name="arrow" /></a>
             </div>
           </div>
 
           <div className="sp-workspace">
             <section className="sp-form-card" aria-labelledby="sp-costs-title">
               <div className="sp-form-head">
-                <div><span className="sp-section-symbol" aria-hidden="true">▤</span><h3 id="sp-costs-title">بنود التكاليف المباشرة والتشغيلية</h3></div>
+                <div><span className="sp-section-symbol" aria-hidden="true">▤</span><h3 id="sp-costs-title">{t('بنود التكاليف المباشرة والتشغيلية')}</h3></div>
                 <span className="sp-step">01 / 02</span>
               </div>
-              <p className="sp-help">أدخل المصاريف لكل قطعة لتكون حسبة السعر أقرب إلى واقع متجرك.</p>
+              <p className="sp-help">{t('أدخل المصاريف لكل قطعة لتكون حسبة السعر أقرب إلى واقع متجرك.')}</p>
               <div className="sp-fields">
                 {FIELDS.map(({ key, label, number, note }) => (
                   <label className="sp-field" key={key}>
-                    <span className="sp-field-heading"><span className="sp-field-name">{label}</span><span className="sp-field-note">{key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "من سعر البيع" : note}</span></span>
+                    <span className="sp-field-heading"><span className="sp-field-name">{t(label)}</span><span className="sp-field-note">{t(key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "من سعر البيع" : note)}</span></span>
                     <span className="sp-input-shell">
-                      <span className="sp-currency-label">{key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "%" : "د.ك"}</span>
-                      <input aria-label={label} type="number" min="0" max={key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "99" : "1000000"} step={key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "0.01" : "0.001"} inputMode="decimal" value={inputs[key]} onChange={(event) => updateCalculatorField(key, event.target.value)} />
+                      <span className="sp-currency-label">{key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "%" : t("د.ك")}</span>
+                      <input aria-label={t(label)} type="number" min="0" max={key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "99" : "1000000"} step={key === "paymentFee" && inputs.paymentFeeType === "percentage" ? "0.01" : "0.001"} inputMode="decimal" value={inputs[key]} onChange={(event) => updateCalculatorField(key, event.target.value)} />
                       <span className="sp-field-number">{number}</span>
                     </span>
                     {key === "paymentFee" && (
-                      <select className="sp-fee-type" aria-label="نوع رسوم الدفع في الحاسبة" value={inputs.paymentFeeType} onChange={(event) => updateCalculatorField("paymentFeeType", event.target.value)}>
-                        <option value="fixed">رسوم ثابتة لكل طلب</option>
-                        <option value="percentage">نسبة من سعر البيع</option>
+                      <select className="sp-fee-type" aria-label={t('نوع رسوم الدفع في الحاسبة')} value={inputs.paymentFeeType} onChange={(event) => updateCalculatorField("paymentFeeType", event.target.value)}>
+                        <option value="fixed">{t('رسوم ثابتة لكل طلب')}</option>
+                        <option value="percentage">{t('نسبة من سعر البيع')}</option>
                       </select>
                     )}
                   </label>
                 ))}
               </div>
               <div className="sp-cost-total">
-                <div><span className="sp-total-label">إجمالي تكلفة القطعة</span><small>مجموع البنود المدخلة أعلاه</small></div>
+                <div><span className="sp-total-label">{t('إجمالي تكلفة القطعة')}</span><small>{t('مجموع البنود المدخلة أعلاه')}</small></div>
                 <Money value={results.totalCost} />
               </div>
               <div className="sp-margin">
-                <div className="sp-margin-heading"><div><label htmlFor="sp-margin-range">هامش الربح المستهدف</label><small>السعر المقترح يتغير تلقائيًا</small></div><output htmlFor="sp-margin-range">{formatPercent(inputs.targetMarginPercent)}</output></div>
-                <div className="sp-presets" aria-label="قيم الهامش السريعة">
+                <div className="sp-margin-heading"><div><label htmlFor="sp-margin-range">{t('هامش الربح المستهدف')}</label><small>{t('السعر المقترح يتغير تلقائيًا')}</small></div><output htmlFor="sp-margin-range">{formatPercent(inputs.targetMarginPercent)}</output></div>
+                <div className="sp-presets" aria-label={t('قيم الهامش السريعة')}>
                   {[25, 35, 50, 65].map((value) => <button type="button" className={Number(inputs.targetMarginPercent) === value ? "is-active" : ""} key={value} onClick={() => updateCalculatorField("targetMarginPercent", String(value))}>{value}%</button>)}
                 </div>
-                <input id="sp-margin-range" className="sp-slider" aria-label="هامش الربح المستهدف" type="range" min="0" max={calculatorMaxMargin} step="1" value={Number(inputs.targetMarginPercent) || 0} onChange={(event) => updateCalculatorField("targetMarginPercent", event.target.value)} />
-                <div className="sp-range-labels"><span>٠٪</span><span>{formatPercent(calculatorMaxMargin)}</span></div>
-                {results.invalidTarget && <p className="sp-inline-warning" role="alert">لا يمكن بلوغ هذا الهامش مع نسبة رسوم الدفع الحالية. خفّض الرسوم أو الهامش.</p>}
+                <input id="sp-margin-range" className="sp-slider" aria-label={t('هامش الربح المستهدف')} type="range" min="0" max={calculatorMaxMargin} step="1" value={Number(inputs.targetMarginPercent) || 0} onChange={(event) => updateCalculatorField("targetMarginPercent", event.target.value)} />
+                <div className="sp-range-labels"><span>{t('٠٪')}</span><span>{formatPercent(calculatorMaxMargin)}</span></div>
+                {results.invalidTarget && <p className="sp-inline-warning" role="alert">{t('لا يمكن بلوغ هذا الهامش مع نسبة رسوم الدفع الحالية. خفّض الرسوم أو الهامش.')}</p>}
               </div>
             </section>
 
-            <section className="sp-results" aria-label="نتائج التسعير">
+            <section className="sp-results" aria-label={t('نتائج التسعير')}>
               <article className="sp-price-card">
-                <div className="sp-result-top"><span>سعر البيع المقترح</span><span className="sp-margin-tag">هامش {formatPercent(inputs.targetMarginPercent)}</span></div>
-                <p className="sp-result-caption">بحسب هامشك المستهدف</p>
+                <div className="sp-result-top"><span>{t('سعر البيع المقترح')}</span><span className="sp-margin-tag">{t("هامش {margin}", { margin: formatPercent(inputs.targetMarginPercent) })}</span></div>
+                <p className="sp-result-caption">{t('بحسب هامشك المستهدف')}</p>
                 <Money value={results.suggestedSellingPrice} className="sp-price" />
                 <div className="sp-key-stats">
-                  <div className="sp-stat-cost"><span>التكلفة الكلية للقطعة</span><Money value={results.totalCost} /></div>
-                  <div className="sp-stat-profit"><span>صافي الربح للقطعة</span><Money value={results.suggestedProfit} /></div>
+                  <div className="sp-stat-cost"><span>{t('التكلفة الكلية للقطعة')}</span><Money value={results.totalCost} /></div>
+                  <div className="sp-stat-profit"><span>{t('صافي الربح للقطعة')}</span><Money value={results.suggestedProfit} /></div>
                 </div>
                 <div className="sp-distribution">
-                  <div className="sp-distribution-head"><span>توزيع السعر</span><span>{formatPercent(inputs.targetMarginPercent)} ربح</span></div>
-                  <div className="sp-distribution-track" role="img" aria-label={`التكلفة ${100 - inputs.targetMarginPercent} بالمئة والربح ${inputs.targetMarginPercent} بالمئة`}><span style={{ width: `${100 - inputs.targetMarginPercent}%` }} /><i style={{ width: `${inputs.targetMarginPercent}%` }} /></div>
-                  <div className="sp-distribution-legend"><span><i className="sp-legend-cost" /> التكلفة</span><span><i className="sp-legend-profit" /> الربح</span></div>
+                  <div className="sp-distribution-head"><span>{t('توزيع السعر')}</span><span>{t("ربح {margin}", { margin: formatPercent(inputs.targetMarginPercent) })}</span></div>
+                  <div className="sp-distribution-track" role="img" aria-label={t("التكلفة {cost} بالمئة والربح {profit} بالمئة", { cost: 100 - inputs.targetMarginPercent, profit: inputs.targetMarginPercent })}><span style={{ width: `${100 - inputs.targetMarginPercent}%` }} /><i style={{ width: `${inputs.targetMarginPercent}%` }} /></div>
+                  <div className="sp-distribution-legend"><span><i className="sp-legend-cost" /> {t('التكلفة')}</span><span><i className="sp-legend-profit" /> {t('الربح')}</span></div>
                 </div>
               </article>
               <article className="sp-compare-card" id="market-comparison">
-                <div className="sp-compare-heading"><div><span className="sp-kicker">مقارنة سريعة</span><h3>ماذا لو غيّرت سعر البيع؟</h3></div></div>
-                <p className="sp-compare-help">غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.</p>
-                <label className="sp-compare-field"><span>سعر البيع للمقارنة</span><span className="sp-input-shell"><span className="sp-currency-label">د.ك</span><input aria-label="سعر البيع للمقارنة" type="number" min="0" step="0.001" inputMode="decimal" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} /></span></label>
-                <input className="sp-slider sp-compare-slider" aria-label="حرّك سعر البيع للمقارنة" type="range" min="0" max={Math.max(20, Number(inputs.comparisonSellingPrice) || 0, results.suggestedSellingPrice * 2)} step="0.001" value={Number(inputs.comparisonSellingPrice) || 0} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} />
+                <div className="sp-compare-heading"><div><span className="sp-kicker">{t('مقارنة سريعة')}</span><h3>{t('ماذا لو غيّرت سعر البيع؟')}</h3></div></div>
+                <p className="sp-compare-help">{t('غيّر السعر وشاهد الربح والهامش المتوقعين فورًا.')}</p>
+                <label className="sp-compare-field"><span>{t('سعر البيع للمقارنة')}</span><span className="sp-input-shell"><span className="sp-currency-label">{t('د.ك')}</span><input aria-label={t('سعر البيع للمقارنة')} type="number" min="0" step="0.001" inputMode="decimal" value={inputs.comparisonSellingPrice} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} /></span></label>
+                <input className="sp-slider sp-compare-slider" aria-label={t('حرّك سعر البيع للمقارنة')} type="range" min="0" max={Math.max(20, Number(inputs.comparisonSellingPrice) || 0, results.suggestedSellingPrice * 2)} step="0.001" value={Number(inputs.comparisonSellingPrice) || 0} onChange={(event) => updateCalculatorField("comparisonSellingPrice", event.target.value)} />
                 <div className="sp-compare-stats">
-                  <div><span>إجمالي التكلفة</span><Money value={results.comparisonTotalCost} /></div>
-                  <div><span>الربح المتوقع</span><Money value={results.comparisonProfit} className={results.comparisonProfit < 0 ? "is-negative" : ""} /></div>
-                  <div><span>هامش الربح</span><strong className={results.comparisonMargin < 0 ? "is-negative" : ""}>{formatKwd(results.comparisonMargin)}٪</strong></div>
+                  <div><span>{t('إجمالي التكلفة')}</span><Money value={results.comparisonTotalCost} /></div>
+                  <div><span>{t('الربح المتوقع')}</span><Money value={results.comparisonProfit} className={results.comparisonProfit < 0 ? "is-negative" : ""} /></div>
+                  <div><span>{t('هامش الربح')}</span><strong className={results.comparisonMargin < 0 ? "is-negative" : ""}>{formatPercent(results.comparisonMargin)}</strong></div>
                 </div>
               </article>
-              <button className="sp-button sp-button-primary" type="button" onClick={startEditorFromCalculator}>أكمل بيانات المنتج واحفظه <Icon name="arrow" /></button>
-              <p className="sp-formula">هامش الربح = (سعر البيع − إجمالي التكلفة) ÷ سعر البيع</p>
+              <button className="sp-button sp-button-primary" type="button" onClick={startEditorFromCalculator}>{t('أكمل بيانات المنتج واحفظه')} <Icon name="arrow" /></button>
+              <p className="sp-formula">{t('هامش الربح = (سعر البيع − إجمالي التكلفة) ÷ سعر البيع')}</p>
             </section>
           </div>
         </section>
@@ -883,64 +900,64 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
             <div className="sp-heading-main">
               <div className="sp-title-icon"><Icon name="package" /></div>
               <div>
-                <p className="sp-kicker">{activeSection === "ai-advice" ? "تحليل المنتج · توصيات ذكية" : activeSection === "store-settings" || activeSection === "payment-settings" ? "إعدادات متجرك" : "إعداد منتج · التكاليف الشاملة"}</p>
-                <h2>{activeSection === "ai-advice" ? "اقتراحات الذكاء الاصطناعي" : activeSection === "store-settings" ? "الرسوم الافتراضية" : activeSection === "payment-settings" ? "رسوم الدفع وKNET" : "محرر التسعير التفصيلي"}</h2>
-                <p className="sp-subtitle">{activeSection === "ai-advice" ? "راجع تكاليف المنتج وسعره ثم احصل على اقتراح مبني على بياناته." : activeSection === "store-settings" || activeSection === "payment-settings" ? "حدّد الرسوم التي تريد تطبيقها افتراضيًا على منتجات متجرك." : "سجّل المنتج وكل ما يدخل في تكلفة القطعة والدفعة."}</p>
+                <p className="sp-kicker">{t(activeSection === "ai-advice" ? "تحليل المنتج · توصيات ذكية" : activeSection === "store-settings" || activeSection === "payment-settings" ? "إعدادات متجرك" : "إعداد منتج · التكاليف الشاملة")}</p>
+                <h2>{t(activeSection === "ai-advice" ? "اقتراحات الذكاء الاصطناعي" : activeSection === "store-settings" ? "الرسوم الافتراضية" : activeSection === "payment-settings" ? "رسوم الدفع وKNET" : "محرر التسعير التفصيلي")}</h2>
+                <p className="sp-subtitle">{t(activeSection === "ai-advice" ? "راجع تكاليف المنتج وسعره ثم احصل على اقتراح مبني على بياناته." : activeSection === "store-settings" || activeSection === "payment-settings" ? "حدّد الرسوم التي تريد تطبيقها افتراضيًا على منتجات متجرك." : "سجّل المنتج وكل ما يدخل في تكلفة القطعة والدفعة.")}</p>
               </div>
             </div>
-            <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>منتج جديد <Icon name="plus" /></button>
+            <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>{t('منتج جديد')} <Icon name="plus" /></button>
           </div>
 
           <form className="sp-default-settings" id="store-settings" onSubmit={saveStoreSettings}>
             <div className="sp-default-settings-heading">
-                <div><h3>{activeSection === "payment-settings" ? "رسوم بوابة الدفع" : "رسوم متجرك الافتراضية"}</h3><p>{activeSection === "payment-settings" ? "حدّد نسبة أو قيمة KNET / MyFatoorah التي تُضاف على كل طلب." : "تُستخدم تلقائيًا عند إنشاء منتج جديد، ويمكن تعديلها داخل كل منتج."}</p></div>
-              <span>إعدادات هذه الجلسة</span>
+                <div><h3>{t(activeSection === "payment-settings" ? "رسوم بوابة الدفع" : "رسوم متجرك الافتراضية")}</h3><p>{t(activeSection === "payment-settings" ? "حدّد نسبة أو قيمة KNET / MyFatoorah التي تُضاف على كل طلب." : "تُستخدم تلقائيًا عند إنشاء منتج جديد، ويمكن تعديلها داخل كل منتج.")}</p></div>
+              <span>{t('إعدادات هذه الجلسة')}</span>
             </div>
             <div className="sp-editor-fields">
               <div className="sp-editor-field">
-                <label htmlFor="default-delivery-fee">رسوم التوصيل الافتراضية</label>
-                <div className="sp-unit-control"><input id="default-delivery-fee" type="number" min="0" step="0.001" value={pricingSettings.defaultDeliveryFee} onChange={(event) => updatePricingSetting("defaultDeliveryFee", event.target.value)} /><span>د.ك</span></div>
+                <label htmlFor="default-delivery-fee">{t('رسوم التوصيل الافتراضية')}</label>
+                <div className="sp-unit-control"><input id="default-delivery-fee" type="number" min="0" step="0.001" value={pricingSettings.defaultDeliveryFee} onChange={(event) => updatePricingSetting("defaultDeliveryFee", event.target.value)} /><span>{t('د.ك')}</span></div>
               </div>
               <div className="sp-editor-field" id="payment-settings">
-                <label htmlFor="default-payment-fee">رسوم الدفع الافتراضية (KNET / MyFatoorah)</label>
+                <label htmlFor="default-payment-fee">{t('رسوم الدفع الافتراضية (KNET / MyFatoorah)')}</label>
                 <div className="sp-default-payment-row">
-                  <select aria-label="نوع رسوم الدفع الافتراضية" value={pricingSettings.defaultPaymentFeeType} onChange={(event) => updatePricingSetting("defaultPaymentFeeType", event.target.value)}>
-                    <option value="fixed">قيمة ثابتة</option><option value="percentage">نسبة مئوية</option>
+                  <select aria-label={t('نوع رسوم الدفع الافتراضية')} value={pricingSettings.defaultPaymentFeeType} onChange={(event) => updatePricingSetting("defaultPaymentFeeType", event.target.value)}>
+                    <option value="fixed">{t('قيمة ثابتة')}</option><option value="percentage">{t('نسبة مئوية')}</option>
                   </select>
-                  <div className="sp-unit-control"><input id="default-payment-fee" type="number" min="0" max={pricingSettings.defaultPaymentFeeType === "percentage" ? "99" : "1000000"} step={pricingSettings.defaultPaymentFeeType === "percentage" ? "0.01" : "0.001"} value={pricingSettings.defaultPaymentFee} onChange={(event) => updatePricingSetting("defaultPaymentFee", event.target.value)} /><span>{pricingSettings.defaultPaymentFeeType === "percentage" ? "%" : "د.ك"}</span></div>
+                  <div className="sp-unit-control"><input id="default-payment-fee" type="number" min="0" max={pricingSettings.defaultPaymentFeeType === "percentage" ? "99" : "1000000"} step={pricingSettings.defaultPaymentFeeType === "percentage" ? "0.01" : "0.001"} value={pricingSettings.defaultPaymentFee} onChange={(event) => updatePricingSetting("defaultPaymentFee", event.target.value)} /><span>{pricingSettings.defaultPaymentFeeType === "percentage" ? "%" : t("د.ك")}</span></div>
                 </div>
               </div>
             </div>
             <div className="sp-default-settings-actions">
-              <button className="sp-button sp-button-light" type="submit">حفظ الرسوم الافتراضية</button>
-              {settingsStatus && <span role="status">{settingsStatus}</span>}
-              {settingsError && <span className="sp-inline-warning" role="alert">{settingsError}</span>}
+              <button className="sp-button sp-button-light" type="submit">{t('حفظ الرسوم الافتراضية')}</button>
+              {settingsStatus && <span role="status">{t(settingsStatus)}</span>}
+              {settingsError && <span className="sp-inline-warning" role="alert">{t(settingsError)}</span>}
             </div>
           </form>
 
           <div className="sp-section-intro">
             <div className="sp-product-context">
               <div className="sp-product-stamp" aria-hidden="true">SP</div>
-              <div><h3>{editingId ? (editor.name || "تعديل المنتج") : "تفاصيل منتجك"}</h3><p>معلومات المنتج محفوظة ضمن جلسة متجرك الحالية فقط.</p></div>
+              <div><h3>{editingId ? (editor.name || t("تعديل المنتج")) : t("تفاصيل منتجك")}</h3><p>{t('معلومات المنتج محفوظة ضمن جلسة متجرك الحالية فقط.')}</p></div>
             </div>
-            <div className="sp-context-meta"><span>العملة: دينار كويتي (د.ك)</span><span>الدفعة: {editorBatch} قطعة</span></div>
+                <div className="sp-context-meta"><span>{t('العملة: دينار كويتي (د.ك)')}</span><span>{t("الدفعة: {editorBatch} قطعة", { editorBatch })}</span></div>
           </div>
 
-          {productError && <p className="sp-alert" role="alert">{productError}</p>}
-          {productNotice && <p className="sp-alert sp-success" role="status">{productNotice}</p>}
+          {productError && <p className="sp-alert" role="alert">{t(productError)}</p>}
+          {productNotice && <p className="sp-alert sp-success" role="status">{t(productNotice)}</p>}
           <div className="sp-editor-grid">
             <form className="sp-editor-form" onSubmit={submitProduct}>
               <section className="sp-editor-panel">
-                <h3>تعريف المنتج</h3>
+                <h3>{t('تعريف المنتج')}</h3>
                 <div className="sp-editor-fields">
-                  <div className="sp-editor-field"><label htmlFor="product-name">اسم المنتج *</label><input id="product-name" required maxLength="120" value={editor.name} onChange={(event) => updateEditor("name", event.target.value)} placeholder="مثال: عطر أو سيروم الوجه" /></div>
-                  <div className="sp-editor-field"><label htmlFor="product-sku">رمز المنتج</label><input id="product-sku" maxLength="40" value={editor.sku} onChange={(event) => updateEditor("sku", event.target.value)} placeholder="اختياري" /></div>
-                  <div className="sp-editor-field"><label htmlFor="product-category">التصنيف</label><input id="product-category" maxLength="80" value={editor.category} onChange={(event) => updateEditor("category", event.target.value)} placeholder="عطور، عناية، إكسسوارات..." /></div>
-                  <div className="sp-editor-field"><label htmlFor="product-batch">كمية الدفعة</label><div className="sp-unit-control"><input id="product-batch" required type="number" min="1" step="1" value={editor.batchQuantity} onChange={(event) => updateEditor("batchQuantity", event.target.value)} /><span>قطعة</span></div></div>
+                  <div className="sp-editor-field"><label htmlFor="product-name">{t('اسم المنتج *')}</label><input id="product-name" required maxLength="120" value={editor.name} onChange={(event) => updateEditor("name", event.target.value)} placeholder={t('مثال: عطر أو سيروم الوجه')} /></div>
+                  <div className="sp-editor-field"><label htmlFor="product-sku">{t('رمز المنتج')}</label><input id="product-sku" maxLength="40" value={editor.sku} onChange={(event) => updateEditor("sku", event.target.value)} placeholder={t('اختياري')} /></div>
+                  <div className="sp-editor-field"><label htmlFor="product-category">{t('التصنيف')}</label><input id="product-category" maxLength="80" value={editor.category} onChange={(event) => updateEditor("category", event.target.value)} placeholder={t('عطور، عناية، إكسسوارات...')} /></div>
+                  <div className="sp-editor-field"><label htmlFor="product-batch">{t('كمية الدفعة')}</label><div className="sp-unit-control"><input id="product-batch" required type="number" min="1" step="1" value={editor.batchQuantity} onChange={(event) => updateEditor("batchQuantity", event.target.value)} /><span>{t('قطعة')}</span></div></div>
                 </div>
               </section>
               <section className="sp-editor-panel">
-                <h3>التكاليف لكل قطعة · د.ك</h3>
+                <h3>{t('التكاليف لكل قطعة · د.ك')}</h3>
                 <div className="sp-editor-fields">
                   {[
                     ["purchaseCost", "تكلفة الشراء"],
@@ -952,93 +969,93 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
                   ].map(([key, label]) => (
                     key === "paymentFee" ? (
                       <div className="sp-editor-field sp-fee-editor-field" key={key}>
-                        <label htmlFor="editor-paymentFee">رسوم الدفع</label>
+                        <label htmlFor="editor-paymentFee">{t('رسوم الدفع')}</label>
                         <div className="sp-fee-editor-row">
-                          <select aria-label="نوع رسوم الدفع للمنتج" value={editor.paymentFeeType} onChange={(event) => updateEditor("paymentFeeType", event.target.value)}>
-                            <option value="fixed">ثابتة</option><option value="percentage">نسبة</option>
+                          <select aria-label={t('نوع رسوم الدفع للمنتج')} value={editor.paymentFeeType} onChange={(event) => updateEditor("paymentFeeType", event.target.value)}>
+                            <option value="fixed">{t('ثابتة')}</option><option value="percentage">{t('نسبة')}</option>
                           </select>
-                          <div className="sp-unit-control"><input id="editor-paymentFee" type="number" min="0" max={editor.paymentFeeType === "percentage" ? "99" : "1000000"} step={editor.paymentFeeType === "percentage" ? "0.01" : "0.001"} value={editor.paymentFee} onChange={(event) => updateEditor("paymentFee", event.target.value)} /><span>{editor.paymentFeeType === "percentage" ? "%" : "د.ك"}</span></div>
+                          <div className="sp-unit-control"><input id="editor-paymentFee" type="number" min="0" max={editor.paymentFeeType === "percentage" ? "99" : "1000000"} step={editor.paymentFeeType === "percentage" ? "0.01" : "0.001"} value={editor.paymentFee} onChange={(event) => updateEditor("paymentFee", event.target.value)} /><span>{editor.paymentFeeType === "percentage" ? "%" : t("د.ك")}</span></div>
                         </div>
                       </div>
                     ) : (
-                      <div className="sp-editor-field" key={key}><label htmlFor={`editor-${key}`}>{label}</label><div className="sp-unit-control"><input id={`editor-${key}`} type="number" min="0" step="0.001" value={editor[key]} onChange={(event) => updateEditor(key, event.target.value)} /><span>د.ك</span></div></div>
+                      <div className="sp-editor-field" key={key}><label htmlFor={`editor-${key}`}>{t(label)}</label><div className="sp-unit-control"><input id={`editor-${key}`} type="number" min="0" step="0.001" value={editor[key]} onChange={(event) => updateEditor(key, event.target.value)} /><span>{t('د.ك')}</span></div></div>
                     )
                   ))}
                 </div>
                 <div className="sp-margin">
-                  <div className="sp-margin-heading"><div><label htmlFor="editor-margin">هامش الربح المستهدف</label><small>من ٠٪ إلى ٩٠٪</small></div><output htmlFor="editor-margin">{formatPercent(editor.targetMarginPercent)}</output></div>
+                  <div className="sp-margin-heading"><div><label htmlFor="editor-margin">{t('هامش الربح المستهدف')}</label><small>{t('من ٠٪ إلى ٩٠٪')}</small></div><output htmlFor="editor-margin">{formatPercent(editor.targetMarginPercent)}</output></div>
                   <div className="sp-editor-fields" style={{ marginTop: 12 }}>
-                    <div className="sp-editor-field"><label htmlFor="editor-margin">الهامش المقترح</label><input id="editor-margin" type="number" min="0" max={Math.max(0, Math.min(90, 99.99 - (editor.paymentFeeType === "percentage" ? Number(editor.paymentFee) || 0 : 0)))} step="1" value={editor.targetMarginPercent} onChange={(event) => updateEditor("targetMarginPercent", event.target.value)} /></div>
-                    <div className="sp-editor-field"><label htmlFor="editor-selling">سعر البيع المعتمد (اختياري)</label><div className="sp-unit-control"><input id="editor-selling" type="number" min="0" step="0.001" value={editor.sellingPrice} onChange={(event) => updateEditor("sellingPrice", event.target.value)} placeholder="استخدم السعر المقترح" /><span>د.ك</span></div></div>
+                    <div className="sp-editor-field"><label htmlFor="editor-margin">{t('الهامش المقترح')}</label><input id="editor-margin" type="number" min="0" max={Math.max(0, Math.min(90, 99.99 - (editor.paymentFeeType === "percentage" ? Number(editor.paymentFee) || 0 : 0)))} step="1" value={editor.targetMarginPercent} onChange={(event) => updateEditor("targetMarginPercent", event.target.value)} /></div>
+                    <div className="sp-editor-field"><label htmlFor="editor-selling">{t('سعر البيع المعتمد (اختياري)')}</label><div className="sp-unit-control"><input id="editor-selling" type="number" min="0" step="0.001" value={editor.sellingPrice} onChange={(event) => updateEditor("sellingPrice", event.target.value)} placeholder={t('استخدم السعر المقترح')} /><span>{t('د.ك')}</span></div></div>
                   </div>
                 </div>
                 <div className="sp-scenario-block">
-                  <div className="sp-scenario-heading"><div><h4>مقارنة سيناريوهات الهامش</h4><p>تأثير كل هامش على سعر وربح القطعة</p></div><span>حسب تكلفتك الحالية</span></div>
+                  <div className="sp-scenario-heading"><div><h4>{t('مقارنة سيناريوهات الهامش')}</h4><p>{t('تأثير كل هامش على سعر وربح القطعة')}</p></div><span>{t('حسب تكلفتك الحالية')}</span></div>
                   <div className="sp-scenario-list">
                     {marginScenarios.map((scenario) => (
                       <div className={`sp-scenario ${scenario.selected ? "is-selected" : ""}`} key={scenario.id}>
                         <div className="sp-scenario-label">
                           <strong>{formatPercent(scenario.margin)}</strong>
-                          <small>{scenario.selected ? "الهامش المحدد" : "سيناريو للمقارنة"}</small>
+                            <small>{t(scenario.selected ? "الهامش المحدد" : "سيناريو للمقارنة")}</small>
                         </div>
-                        <div><small>سعر البيع</small><b>{formatKwd(scenario.price)} <i>د.ك</i></b></div>
-                        <div><small>ربح القطعة</small><b>{formatKwd(scenario.profit)} <i>د.ك</i></b></div>
+                        <div><small>{t('سعر البيع')}</small><b>{formatKwd(scenario.price)} <i>{t('د.ك')}</i></b></div>
+                        <div><small>{t('ربح القطعة')}</small><b>{formatKwd(scenario.profit)} <i>{t('د.ك')}</i></b></div>
                       </div>
                     ))}
                   </div>
-                  <p className="sp-scenario-footnote">هذه مقارنة حسابية بين نسب الهامش، وليست توصية آلية.</p>
+                  <p className="sp-scenario-footnote">{t('هذه مقارنة حسابية بين نسب الهامش، وليست توصية آلية.')}</p>
                 </div>
               </section>
               <section className="sp-editor-panel">
-                <h3>بنود تكلفة إضافية</h3>
+                <h3>{t('بنود تكلفة إضافية')}</h3>
                 {editor.customCosts.map((item, index) => (
                   <div className="sp-custom-row" key={`custom-${index}`}>
-                    <input aria-label={`اسم بند التكلفة ${index + 1}`} maxLength="80" value={item.label} onChange={(event) => updateCustomCost(index, "label", event.target.value)} placeholder="اسم البند" />
-                    <input aria-label={`قيمة بند التكلفة ${index + 1}`} type="number" min="0" step="0.001" value={item.amount} onChange={(event) => updateCustomCost(index, "amount", event.target.value)} placeholder="0.000" />
-                    <button className="sp-remove-custom" type="button" aria-label="حذف بند التكلفة" onClick={() => setEditor((current) => ({ ...current, customCosts: current.customCosts.filter((_, i) => i !== index) }))}>×</button>
+                    <input aria-label={t("اسم بند التكلفة {index}", { index: index + 1 })} maxLength="80" value={item.label} onChange={(event) => updateCustomCost(index, "label", event.target.value)} placeholder={t('اسم البند')} />
+                    <input aria-label={t("قيمة بند التكلفة {index}", { index: index + 1 })} type="number" min="0" step="0.001" value={item.amount} onChange={(event) => updateCustomCost(index, "amount", event.target.value)} placeholder="0.000" />
+                    <button className="sp-remove-custom" type="button" aria-label={t('حذف بند التكلفة')} onClick={() => setEditor((current) => ({ ...current, customCosts: current.customCosts.filter((_, i) => i !== index) }))}>×</button>
                   </div>
                 ))}
-                <button className="sp-add-custom" type="button" onClick={() => setEditor((current) => ({ ...current, customCosts: [...current.customCosts, { label: "", amount: "0" }] }))} disabled={editor.customCosts.length >= 20}>+ إضافة بند تكلفة مخصص</button>
+                <button className="sp-add-custom" type="button" onClick={() => setEditor((current) => ({ ...current, customCosts: [...current.customCosts, { label: "", amount: "0" }] }))} disabled={editor.customCosts.length >= 20}>{t('+ إضافة بند تكلفة مخصص')}</button>
               </section>
               <section className="sp-editor-panel sp-discount-panel">
-                <h3>محاكي الخصومات والعروض</h3>
-                <p className="sp-discount-help">شاهد ربح الطلب بعد الخصم مع إعادة احتساب رسوم الدفع النسبية على سعره الجديد.</p>
-                <label className="sp-editor-field" htmlFor="discount-percent">نسبة الخصم</label>
+                <h3>{t('محاكي الخصومات والعروض')}</h3>
+                <p className="sp-discount-help">{t('شاهد ربح الطلب بعد الخصم مع إعادة احتساب رسوم الدفع النسبية على سعره الجديد.')}</p>
+                <label className="sp-editor-field" htmlFor="discount-percent">{t('نسبة الخصم')}</label>
                 <div className="sp-discount-control">
                   <input id="discount-percent" type="number" min="0" max="100" step="1" value={discountPercent} onChange={(event) => setDiscountPercent(sanitizeNumericInput(event.target.value, { max: 100 }) ?? discountPercent)} />
                   <span>%</span>
                   {[10, 20].map((value) => <button type="button" className={discountValue === value ? "is-active" : ""} key={value} onClick={() => setDiscountPercent(String(value))}>{value}%</button>)}
                 </div>
-                <input className="sp-slider" aria-label="نسبة الخصم" type="range" min="0" max="100" step="1" value={discountValue} onChange={(event) => setDiscountPercent(event.target.value)} />
+                <input className="sp-slider" aria-label={t('نسبة الخصم')} type="range" min="0" max="100" step="1" value={discountValue} onChange={(event) => setDiscountPercent(event.target.value)} />
                 <div className="sp-discount-results">
-                  <div><small>قبل الخصم · الربح لكل طلب</small><strong>{formatKwd(editorProfit)} د.ك</strong></div>
-                  <div><small>بعد خصم {formatPercent(discountValue)} · سعر البيع</small><strong>{formatKwd(discountStats.price)} د.ك</strong></div>
-                  <div className={discountStats.profit < 0 ? "is-negative" : ""}><small>الربح بعد الخصم</small><strong>{formatKwd(discountStats.profit)} د.ك</strong><span>الهامش {formatPercent(discountStats.marginPercent)}</span></div>
+                    <div><small>{t('قبل الخصم · الربح لكل طلب')}</small><strong>{formatKwd(editorProfit)} {t("د.ك")}</strong></div>
+                    <div><small>{t("بعد خصم {discount} · سعر البيع", { discount: formatPercent(discountValue) })}</small><strong>{formatKwd(discountStats.price)} {t("د.ك")}</strong></div>
+                    <div className={discountStats.profit < 0 ? "is-negative" : ""}><small>{t('الربح بعد الخصم')}</small><strong>{formatKwd(discountStats.profit)} {t("د.ك")}</strong><span>{t("الهامش {margin}", { margin: formatPercent(discountStats.marginPercent) })}</span></div>
                 </div>
               </section>
               <section className="sp-editor-panel sp-advice-panel" id="ai-advice">
-                <div className="sp-advice-heading"><div><h3>اقتراحات الذكاء الاصطناعي</h3><p>التوصيات تشرح النتائج المحسوبة هنا ولا تستبدل الحسابات.</p></div><span>OpenRouter</span></div>
+                <div className="sp-advice-heading"><div><h3>{t('اقتراحات الذكاء الاصطناعي')}</h3><p>{t('التوصيات تشرح النتائج المحسوبة هنا ولا تستبدل الحسابات.')}</p></div><span>OpenRouter</span></div>
                 <button className="sp-button sp-button-light" type="button" onClick={askForPricingAdvice} disabled={adviceLoading}>
-                  {adviceLoading ? "جارٍ إعداد الاقتراح..." : "حلّل السعر والخصم"}
+                  {t(adviceLoading ? "جارٍ إعداد الاقتراح..." : "حلّل السعر والخصم")}
                 </button>
-                {adviceError && <p className="sp-alert" role="alert">{adviceError}</p>}
-                {advice && <p className="sp-advice-result" role="status">{advice}</p>}
+                {adviceError && <p className="sp-alert" role="alert">{t(adviceError)}</p>}
+                {advice && adviceLocale === language && <p className="sp-advice-result" role="status">{advice}</p>}
               </section>
               <div className="sp-editor-actions">
                 <button className="sp-button sp-button-primary" type="submit" disabled={savingProduct || !sessionId}>
-                  {savingProduct ? "جارٍ الحفظ..." : editingId ? "حفظ تعديلات المنتج" : "حفظ المنتج في الكتالوج"}
+                  {t(savingProduct ? "جارٍ الحفظ..." : editingId ? "حفظ تعديلات المنتج" : "حفظ المنتج في الكتالوج")}
                 </button>
-                {editingId && <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>إلغاء التعديل</button>}
+                {editingId && <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>{t('إلغاء التعديل')}</button>}
               </div>
             </form>
             <aside className="sp-editor-summary">
               <div className="sp-editor-price">
-                <small>السعر المحسوب للقطعة</small>
-                <strong>{formatKwd(editorSell)} <small>د.ك</small></strong>
-                <div><span>إجمالي تكلفة القطعة<b>{formatKwd(editorCosts)} د.ك</b></span><span>ربح القطعة<b>{formatKwd(editorProfit)} د.ك</b></span></div>
-                <div><span>تكلفة الدفعة<b>{formatKwd(editorCosts * editorBatch)} د.ك</b></span><span>ربح الدفعة<b>{formatKwd(editorProfit * editorBatch)} د.ك</b></span></div>
+                <small>{t('السعر المحسوب للقطعة')}</small>
+                <strong>{formatKwd(editorSell)} <small>{t('د.ك')}</small></strong>
+                <div><span>{t('إجمالي تكلفة القطعة')}<b>{formatKwd(editorCosts)} {t("د.ك")}</b></span><span>{t('ربح القطعة')}<b>{formatKwd(editorProfit)} {t("د.ك")}</b></span></div>
+                <div><span>{t('تكلفة الدفعة')}<b>{formatKwd(editorCosts * editorBatch)} {t("د.ك")}</b></span><span>{t('ربح الدفعة')}<b>{formatKwd(editorProfit * editorBatch)} {t("د.ك")}</b></span></div>
               </div>
-              <p className="sp-editor-hint">يُحسب السعر المقترح من هامش الربح المستهدف. أدخل سعرًا معتمدًا فقط إذا كان لديك سعر بيع مختلف تريد تسجيله.</p>
+              <p className="sp-editor-hint">{t('يُحسب السعر المقترح من هامش الربح المستهدف. أدخل سعرًا معتمدًا فقط إذا كان لديك سعر بيع مختلف تريد تسجيله.')}</p>
             </aside>
           </div>
         </section>
@@ -1048,50 +1065,50 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
             <div className="sp-heading">
               <div className="sp-heading-main">
                 <div className="sp-title-icon"><Icon name="package" /></div>
-                <div><p className="sp-kicker">منتجات جلسة متجرك</p><h2>قائمة المنتجات والأسعار</h2><p className="sp-subtitle">تابع تكاليفك وسعر البيع وهامش الربح المحسوب لكل منتج.</p></div>
+                <div><p className="sp-kicker">{t('منتجات جلسة متجرك')}</p><h2>{t('قائمة المنتجات والأسعار')}</h2><p className="sp-subtitle">{t('تابع تكاليفك وسعر البيع وهامش الربح المحسوب لكل منتج.')}</p></div>
               </div>
             </div>
             <div className="sp-catalog-actions">
-              <button className="sp-button sp-button-light" type="button" onClick={exportCsv} disabled={productsState !== "loaded" || products.length === 0}><Icon name="download" /> تصدير CSV</button>
-              <button className="sp-button sp-button-light" type="button" onClick={() => window.print()} disabled={productsState !== "loaded" || products.length === 0}>طباعة / PDF</button>
-              <button className="sp-button sp-button-primary" type="button" onClick={() => startNewProduct(true)}><Icon name="plus" /> تسعير منتج جديد</button>
+              <button className="sp-button sp-button-light" type="button" onClick={exportCsv} disabled={productsState !== "loaded" || products.length === 0}><Icon name="download" /> {t('تصدير CSV')}</button>
+              <button className="sp-button sp-button-light" type="button" onClick={() => window.print()} disabled={productsState !== "loaded" || products.length === 0}>{t('طباعة / PDF')}</button>
+              <button className="sp-button sp-button-primary" type="button" onClick={() => startNewProduct(true)}><Icon name="plus" /> {t('تسعير منتج جديد')}</button>
             </div>
           </div>
 
-          {catalogError && <p className="sp-alert" role="alert">{catalogError} <button className="sp-button sp-button-quiet" type="button" onClick={refreshProducts}>إعادة المحاولة <Icon name="refresh" /></button></p>}
-          <div className="sp-kpis" aria-label="ملخص الكتالوج">
-            <div className="sp-kpi"><label>إجمالي المنتجات</label><strong>{productsState === "loading" ? "—" : catalogStats.count}</strong></div>
-            <div className="sp-kpi"><label>متوسط سعر البيع</label><strong>{productsState === "loading" ? "—" : formatKwd(catalogStats.averageSelling)}<small>د.ك</small></strong></div>
-            <div className="sp-kpi sp-kpi-emphasis"><label>متوسط هامش الربح</label><strong>{productsState === "loading" ? "—" : formatPercent(catalogStats.averageMargin)}</strong></div>
-            <div className="sp-kpi"><label>إجمالي ربح القطعة المتوقع</label><strong>{productsState === "loading" ? "—" : formatKwd(catalogStats.totalExpectedProfit)}<small>د.ك</small></strong></div>
+          {catalogError && <p className="sp-alert" role="alert">{catalogError} <button className="sp-button sp-button-quiet" type="button" onClick={refreshProducts}>{t('إعادة المحاولة')} <Icon name="refresh" /></button></p>}
+          <div className="sp-kpis" aria-label={t('ملخص الكتالوج')}>
+            <div className="sp-kpi"><label>{t('إجمالي المنتجات')}</label><strong>{productsState === "loading" ? "—" : catalogStats.count}</strong></div>
+            <div className="sp-kpi"><label>{t('متوسط سعر البيع')}</label><strong>{productsState === "loading" ? "—" : formatKwd(catalogStats.averageSelling)}<small>{t('د.ك')}</small></strong></div>
+            <div className="sp-kpi sp-kpi-emphasis"><label>{t('متوسط هامش الربح')}</label><strong>{productsState === "loading" ? "—" : formatPercent(catalogStats.averageMargin)}</strong></div>
+            <div className="sp-kpi"><label>{t('إجمالي ربح القطعة المتوقع')}</label><strong>{productsState === "loading" ? "—" : formatKwd(catalogStats.totalExpectedProfit)}<small>{t('د.ك')}</small></strong></div>
           </div>
           <div className="sp-toolbar">
-            <label className="sp-search"><Icon name="search" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث باسم المنتج أو الرمز..." aria-label="بحث المنتجات" /></label>
-            <select aria-label="التصفية حسب التصنيف" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-              <option value="all">كل التصنيفات</option>
-              {categories.map((category) => <option value={category} key={category}>{category}</option>)}
+            <label className="sp-search"><Icon name="search" /><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('ابحث باسم المنتج أو الرمز...')} aria-label={t('بحث المنتجات')} /></label>
+            <select aria-label={t('التصفية حسب التصنيف')} value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <option value="all">{t('كل التصنيفات')}</option>
+              {categories.map((category) => <option value={category} key={category}>{category === "بدون تصنيف" ? t("بدون تصنيف") : category}</option>)}
             </select>
-            <select aria-label="التصفية حسب هامش الربح" value={marginFilter} onChange={(event) => setMarginFilter(event.target.value)}>
-              <option value="all">كل الهوامش</option><option value="review">يحتاج مراجعة · أقل من ٣٥٪</option><option value="healthy">هامش ٣٥٪ فأعلى</option>
+            <select aria-label={t('التصفية حسب هامش الربح')} value={marginFilter} onChange={(event) => setMarginFilter(event.target.value)}>
+              <option value="all">{t('كل الهوامش')}</option><option value="review">{t('يحتاج مراجعة · أقل من ٣٥٪')}</option><option value="healthy">{t('هامش ٣٥٪ فأعلى')}</option>
             </select>
-            <div className="sp-view-toggle" role="group" aria-label="طريقة عرض المنتجات">
-              <button type="button" className={catalogView === "table" ? "is-active" : ""} aria-pressed={catalogView === "table"} onClick={() => setCatalogView("table")} title="عرض جدولي">جدول</button>
-              <button type="button" className={catalogView === "grid" ? "is-active" : ""} aria-pressed={catalogView === "grid"} onClick={() => setCatalogView("grid")} title="عرض بطاقات">بطاقات</button>
+            <div className="sp-view-toggle" role="group" aria-label={t('طريقة عرض المنتجات')}>
+              <button type="button" className={catalogView === "table" ? "is-active" : ""} aria-pressed={catalogView === "table"} onClick={() => setCatalogView("table")} title={t('عرض جدولي')}>{t('جدول')}</button>
+              <button type="button" className={catalogView === "grid" ? "is-active" : ""} aria-pressed={catalogView === "grid"} onClick={() => setCatalogView("grid")} title={t('عرض بطاقات')}>{t('بطاقات')}</button>
             </div>
           </div>
           <div className="sp-table-wrap">
             {productsState === "loading" ? (
-              <div className="sp-loading-list" role="status" aria-label="جارٍ تحميل المنتجات"><div className="sp-skeleton" /><div className="sp-skeleton" /><div className="sp-skeleton" /></div>
+              <div className="sp-loading-list" role="status" aria-label={t('جارٍ تحميل المنتجات')}><div className="sp-skeleton" /><div className="sp-skeleton" /><div className="sp-skeleton" /></div>
             ) : productsState === "error" ? (
-              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="refresh" /></span><h3>تعذر تحميل الكتالوج</h3><p>لم نتمكن من جلب منتجات جلسة متجرك. تحقق من الاتصال ثم أعد المحاولة.</p><button type="button" className="sp-button sp-button-light" onClick={refreshProducts}>إعادة تحميل المنتجات</button></div>
+              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="refresh" /></span><h3>{t('تعذر تحميل الكتالوج')}</h3><p>{t('لم نتمكن من جلب منتجات جلسة متجرك. تحقق من الاتصال ثم أعد المحاولة.')}</p><button type="button" className="sp-button sp-button-light" onClick={refreshProducts}>{t('إعادة تحميل المنتجات')}</button></div>
             ) : products.length === 0 ? (
-              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="package" /></span><h3>لا توجد منتجات محفوظة بعد</h3><p>احفظ أول منتج من محرر التسعير التفصيلي لتظهر تكاليفه وسعره هنا.</p><button type="button" className="sp-button sp-button-primary" onClick={() => startNewProduct(true)}>ابدأ بإضافة منتج <Icon name="plus" /></button></div>
+              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="package" /></span><h3>{t('لا توجد منتجات محفوظة بعد')}</h3><p>{t('احفظ أول منتج من محرر التسعير التفصيلي لتظهر تكاليفه وسعره هنا.')}</p><button type="button" className="sp-button sp-button-primary" onClick={() => startNewProduct(true)}>{t('ابدأ بإضافة منتج')} <Icon name="plus" /></button></div>
             ) : filteredProducts.length === 0 ? (
-              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="search" /></span><h3>لا توجد نتائج مطابقة</h3><p>جرّب كلمة بحث أخرى أو غيّر عوامل التصفية.</p><button type="button" className="sp-button sp-button-light" onClick={() => { setSearch(""); setCategoryFilter("all"); setMarginFilter("all"); }}>مسح عوامل التصفية</button></div>
+              <div className="sp-empty"><span className="sp-empty-icon"><Icon name="search" /></span><h3>{t('لا توجد نتائج مطابقة')}</h3><p>{t('جرّب كلمة بحث أخرى أو غيّر عوامل التصفية.')}</p><button type="button" className="sp-button sp-button-light" onClick={() => { setSearch(""); setCategoryFilter("all"); setMarginFilter("all"); }}>{t('مسح عوامل التصفية')}</button></div>
             ) : (
               catalogView === "table" ? (
                 <table className="sp-table">
-                  <thead><tr><th>المنتج</th><th>التصنيف</th><th className="sp-align-left">الشراء</th><th className="sp-align-left">إضافي</th><th className="sp-align-left">التكلفة</th><th className="sp-align-left">سعر البيع</th><th className="sp-align-left">الربح</th><th>الهامش</th><th>الحالة</th><th>إجراءات</th></tr></thead>
+                  <thead><tr><th>{t('المنتج')}</th><th>{t('التصنيف')}</th><th className="sp-align-left">{t('الشراء')}</th><th className="sp-align-left">{t('إضافي')}</th><th className="sp-align-left">{t('التكلفة')}</th><th className="sp-align-left">{t('سعر البيع')}</th><th className="sp-align-left">{t('الربح')}</th><th>{t('الهامش')}</th><th>{t('الحالة')}</th><th>{t('إجراءات')}</th></tr></thead>
                   <tbody>
                     {pageProducts.map((product) => {
                       const lowMargin = Number(product.marginPercent) < 35;
@@ -1099,17 +1116,17 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
                       return (
                         <tr key={product.id}>
                           <td><div className="sp-product-cell"><strong>{product.name}</strong><small>{product.sku || "—"}</small></div></td>
-                          <td><span className="sp-category-chip">{product.category || "بدون تصنيف"}</span></td>
+                          <td><span className="sp-category-chip">{product.category === "بدون تصنيف" || !product.category ? t("بدون تصنيف") : product.category}</span></td>
                           <td className="sp-align-left">{formatKwd(product.purchaseCost)}</td>
                           <td className="sp-align-left">{formatKwd(additional)}</td>
                           <td className="sp-align-left"><strong>{formatKwd(product.totalCost)}</strong></td>
                           <td className="sp-align-left">{formatKwd(product.sellingPrice)}</td>
                           <td className="sp-align-left">{formatKwd(product.expectedProfit)}</td>
                           <td><span className={`sp-margin-chip ${lowMargin ? "low" : ""}`}>{formatPercent(product.marginPercent)}</span></td>
-                          <td><span className={`sp-status ${lowMargin ? "review" : ""}`}>{lowMargin ? "يحتاج مراجعة" : "هامش جيد"}</span></td>
+                          <td><span className={`sp-status ${lowMargin ? "review" : ""}`}>{t(lowMargin ? "يحتاج مراجعة" : "هامش جيد")}</span></td>
                           <td><div className="sp-row-actions">
-                            <button className="sp-icon-button" type="button" title="تعديل المنتج" aria-label={`تعديل ${product.name}`} onClick={() => editProduct(product)}><Icon name="edit" /></button>
-                            <button className="sp-icon-button delete" type="button" title="حذف المنتج" aria-label={`حذف ${product.name}`} onClick={() => removeProduct(product)}><Icon name="trash" /></button>
+                            <button className="sp-icon-button" type="button" title={t('تعديل المنتج')} aria-label={t("تعديل المنتج {name}", { name: product.name })} onClick={() => editProduct(product)}><Icon name="edit" /></button>
+                            <button className="sp-icon-button delete" type="button" title={t('حذف المنتج')} aria-label={t("حذف {name}", { name: product.name })} onClick={() => removeProduct(product)}><Icon name="trash" /></button>
                           </div></td>
                         </tr>
                       );
@@ -1124,16 +1141,16 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
                       <article className="sp-product-card" key={product.id}>
                         <div className="sp-product-card-head"><span className="sp-product-card-mark"><Icon name="package" /></span><span className={`sp-margin-chip ${lowMargin ? "low" : ""}`}>{formatPercent(product.marginPercent)}</span></div>
                         <h3>{product.name}</h3>
-                        <div className="sp-product-card-meta"><span>{product.sku || "—"}</span><span className="sp-category-chip">{product.category || "بدون تصنيف"}</span></div>
+                        <div className="sp-product-card-meta"><span>{product.sku || "—"}</span><span className="sp-category-chip">{product.category === "بدون تصنيف" || !product.category ? t("بدون تصنيف") : product.category}</span></div>
                         <div className="sp-product-card-values">
-                          <div><small>التكلفة</small><b>{formatKwd(product.totalCost)} د.ك</b></div>
-                          <div><small>سعر البيع</small><b>{formatKwd(product.sellingPrice)} د.ك</b></div>
-                          <div><small>ربح القطعة</small><b>{formatKwd(product.expectedProfit)} د.ك</b></div>
-                          <div><small>الحالة</small><b className={lowMargin ? "review-text" : ""}>{lowMargin ? "يحتاج مراجعة" : "هامش جيد"}</b></div>
+                          <div><small>{t('التكلفة')}</small><b>{formatKwd(product.totalCost)} {t("د.ك")}</b></div>
+                          <div><small>{t('سعر البيع')}</small><b>{formatKwd(product.sellingPrice)} {t("د.ك")}</b></div>
+                          <div><small>{t('ربح القطعة')}</small><b>{formatKwd(product.expectedProfit)} {t("د.ك")}</b></div>
+                          <div><small>{t('الحالة')}</small><b className={lowMargin ? "review-text" : ""}>{t(lowMargin ? "يحتاج مراجعة" : "هامش جيد")}</b></div>
                         </div>
                         <div className="sp-product-card-actions">
-                          <button className="sp-button sp-button-light" type="button" onClick={() => editProduct(product)}><Icon name="edit" /> تعديل</button>
-                          <button className="sp-button sp-button-danger" type="button" onClick={() => removeProduct(product)}><Icon name="trash" /> حذف</button>
+                          <button className="sp-button sp-button-light" type="button" onClick={() => editProduct(product)}><Icon name="edit" /> {t('تعديل')}</button>
+                          <button className="sp-button sp-button-danger" type="button" onClick={() => removeProduct(product)}><Icon name="trash" /> {t('حذف')}</button>
                         </div>
                       </article>
                     );
@@ -1144,21 +1161,21 @@ function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, 
           </div>
           {productsState === "loaded" && filteredProducts.length > 0 && (
             <div className="sp-pagination">
-              <span>عرض {(visiblePage - 1) * pageSize + 1}–{Math.min(visiblePage * pageSize, filteredProducts.length)} من {filteredProducts.length} منتج</span>
+              <span>{t("عرض {start}–{end} من {count} منتج", { start: formatNumber((visiblePage - 1) * pageSize + 1), end: formatNumber(Math.min(visiblePage * pageSize, filteredProducts.length)), count: formatNumber(filteredProducts.length) })}</span>
               <div>
-                <button type="button" className="sp-page-button" aria-label="الصفحة السابقة" disabled={visiblePage <= 1} onClick={() => setCatalogPage(visiblePage - 1)}>السابق</button>
+                <button type="button" className="sp-page-button" aria-label={t('الصفحة السابقة')} disabled={visiblePage <= 1} onClick={() => setCatalogPage(visiblePage - 1)}>{t('السابق')}</button>
                 {Array.from({ length: pageCount }, (_, index) => index + 1).map((page) => <button type="button" key={page} className={`sp-page-button ${visiblePage === page ? "is-current" : ""}`} aria-current={visiblePage === page ? "page" : undefined} onClick={() => setCatalogPage(page)}>{page}</button>)}
-                <button type="button" className="sp-page-button" aria-label="الصفحة التالية" disabled={visiblePage >= pageCount} onClick={() => setCatalogPage(visiblePage + 1)}>التالي</button>
+                <button type="button" className="sp-page-button" aria-label={t('الصفحة التالية')} disabled={visiblePage >= pageCount} onClick={() => setCatalogPage(visiblePage + 1)}>{t('التالي')}</button>
               </div>
             </div>
           )}
           <div className="sp-print-only">
             <table className="sp-table sp-print-table">
-              <thead><tr><th>المنتج</th><th>التصنيف</th><th>تكلفة الشراء</th><th>إجمالي التكلفة</th><th>سعر البيع</th><th>ربح القطعة</th><th>الهامش</th><th>الدفعة</th></tr></thead>
-              <tbody>{products.map((product) => <tr key={`print-${product.id}`}><td>{product.name}{product.sku ? ` · ${product.sku}` : ""}</td><td>{product.category || "بدون تصنيف"}</td><td>{formatKwd(product.purchaseCost)}</td><td>{formatKwd(product.totalCost)}</td><td>{formatKwd(product.sellingPrice)}</td><td>{formatKwd(product.expectedProfit)}</td><td>{formatPercent(product.marginPercent)}</td><td>{product.batchQuantity}</td></tr>)}</tbody>
+              <thead><tr><th>{t('المنتج')}</th><th>{t('التصنيف')}</th><th>{t('تكلفة الشراء')}</th><th>{t('إجمالي التكلفة')}</th><th>{t('سعر البيع')}</th><th>{t('ربح القطعة')}</th><th>{t('الهامش')}</th><th>{t('الدفعة')}</th></tr></thead>
+              <tbody>{products.map((product) => <tr key={`print-${product.id}`}><td>{product.name}{product.sku ? ` · ${product.sku}` : ""}</td><td>{product.category === "بدون تصنيف" || !product.category ? t("بدون تصنيف") : product.category}</td><td>{formatKwd(product.purchaseCost)}</td><td>{formatKwd(product.totalCost)}</td><td>{formatKwd(product.sellingPrice)}</td><td>{formatKwd(product.expectedProfit)}</td><td>{formatPercent(product.marginPercent)}</td><td>{product.batchQuantity}</td></tr>)}</tbody>
             </table>
           </div>
-          <footer className="sp-footer"><span>جميع المبالغ بالدينار الكويتي (د.ك)</span><span className="sp-footer-dot" /> بيانات الكتالوج من المنتجات المحفوظة لهذه الجلسة</footer>
+          <footer className="sp-footer"><span>{t('جميع المبالغ بالدينار الكويتي (د.ك)')}</span><span className="sp-footer-dot" /> {t('بيانات الكتالوج من المنتجات المحفوظة لهذه الجلسة')}</footer>
         </section>
       </main>
     </div>

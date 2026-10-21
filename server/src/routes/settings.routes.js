@@ -2,6 +2,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import PricingSettings from "../models/PricingSettings.js";
 import { workspaceFilter } from "../middleware/account.js";
+import { notifySafely, fingerprint } from "../services/notifications.js";
 
 const router = Router();
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -69,6 +70,7 @@ router.put("/:sessionId", async (req, res, next) => {
       { $set: { defaultDeliveryFee, defaultPaymentFee, defaultPaymentFeeType } },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
     ).lean();
+    await notifySafely(req.user._id, "settings_saved", `settings:${fingerprint({ defaultDeliveryFee, defaultPaymentFee, defaultPaymentFeeType })}`);
     return res.json({ settings: serialize(settings) });
   } catch (error) {
     return next(error);

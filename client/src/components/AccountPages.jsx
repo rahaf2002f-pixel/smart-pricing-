@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 import { loginAccount, registerAccount, updateAccount } from "../services/authApi.js";
+import { useI18n } from "../i18n/I18nProvider.jsx";
+import { notifyClient } from "../services/notificationsApi.js";
 
 const COPY = {
   requiredName: "أدخل الاسم الكامل.",
@@ -66,15 +68,17 @@ function AccountField({
   required = true,
   minLength,
   maxLength,
-  direction = "rtl",
+  direction,
   revealable = false,
   revealed,
   onToggleReveal,
 }) {
+  const { t, dir } = useI18n();
+  const inputDirection = direction || dir;
   return (
     <div className={`spa-field${error ? " has-error" : ""}`}>
-      <label htmlFor={id}>{label}</label>
-      <div className={`spa-input-wrap${direction === "ltr" ? " is-ltr" : ""}`}>
+      <label htmlFor={id}>{t(label)}</label>
+      <div className={`spa-input-wrap${inputDirection === "ltr" ? " is-ltr" : ""}`}>
         {type === "email" && <AccountIcon name="mail" />}
         {type === "password" && <AccountIcon name="lock" />}
         {type === "text" && id === "fullName" && <AccountIcon name="user" />}
@@ -85,11 +89,11 @@ function AccountField({
           value={value}
           onChange={onChange}
           autoComplete={autoComplete}
-          placeholder={placeholder}
+          placeholder={placeholder ? t(placeholder) : undefined}
           required={required}
           minLength={minLength}
           maxLength={maxLength}
-          dir={direction}
+          dir={inputDirection}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
         />
@@ -98,14 +102,14 @@ function AccountField({
             className="spa-reveal"
             type="button"
             onClick={onToggleReveal}
-            aria-label={revealed ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+            aria-label={t(revealed ? "إخفاء كلمة المرور" : "إظهار كلمة المرور")}
             aria-pressed={revealed}
           >
-            {revealed ? "إخفاء" : "إظهار"}
+            {t(revealed ? "إخفاء" : "إظهار")}
           </button>
         )}
       </div>
-      {error && <span className="spa-field-error" id={`${id}-error`}>{error}</span>}
+      {error && <span className="spa-field-error" id={`${id}-error`}>{t(error)}</span>}
     </div>
   );
 }
@@ -118,6 +122,7 @@ export default function AccountPages({
   onUserUpdated,
   navigateTo,
 }) {
+  const { language, dir, t } = useI18n();
   const [form, setForm] = useState({
     fullName: "",
     email: "",
@@ -168,7 +173,7 @@ export default function AccountPages({
       if (!form.currentPassword) next.currentPassword = COPY.requiredCurrentPassword;
       if (form.newPassword && form.newPassword.length < 10) next.newPassword = COPY.passwordLength;
       if (form.newPassword && form.newPassword !== form.confirmPassword) next.confirmPassword = COPY.passwordMismatch;
-      if (!form.newPassword && form.confirmPassword) next.confirmPassword = "اترك تأكيد كلمة المرور فارغًا إذا لم ترغب في تغييرها.";
+      if (!form.newPassword && form.confirmPassword) next.confirmPassword = t("اترك تأكيد كلمة المرور فارغًا إذا لم ترغب في تغييرها.");
     }
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -176,7 +181,11 @@ export default function AccountPages({
 
   async function handleSubmit(event) {
     event.preventDefault();
-    if (inFlight.current || !validate()) return;
+    if (inFlight.current) return;
+    if (!validate()) {
+      notifyClient("validation_error", isSignup ? "signup" : isAccount ? "account" : "signin");
+      return;
+    }
     inFlight.current = true;
     setLoading(true);
     setFormMessage("");
@@ -242,13 +251,13 @@ export default function AccountPages({
 
   if (isAccount && !user) {
     return (
-      <div className="spa-page" dir="rtl" lang="ar">
+      <div className="spa-page" dir={dir} lang={language}>
         <section className="spa-card spa-card-compact" aria-labelledby="spa-account-needed">
           <span className="spa-mark" aria-hidden="true"><AccountIcon name="user" /></span>
-          <p className="spa-kicker">مساحة الحساب</p>
-          <h1 id="spa-account-needed">سجّل الدخول لعرض بياناتك</h1>
-          <p className="spa-intro">تظهر هنا بيانات الحساب المحفوظة بعد تسجيل الدخول.</p>
-          <button className="spa-primary" type="button" onClick={(event) => goTo("signin", event)}>تسجيل الدخول <AccountIcon name="arrow" /></button>
+          <p className="spa-kicker">{t("مساحة الحساب")}</p>
+          <h1 id="spa-account-needed">{t("سجّل الدخول لعرض بياناتك")}</h1>
+          <p className="spa-intro">{t("تظهر هنا بيانات الحساب المحفوظة بعد تسجيل الدخول.")}</p>
+          <button className="spa-primary" type="button" onClick={(event) => goTo("signin", event)}>{t("تسجيل الدخول")} <AccountIcon name="arrow" /></button>
         </section>
       </div>
     );
@@ -256,58 +265,58 @@ export default function AccountPages({
 
   if (isAccount && !isEdit) {
     return (
-      <div className="spa-page" dir="rtl" lang="ar">
+      <div className="spa-page" dir={dir} lang={language}>
         <section className="spa-card spa-account-card" aria-labelledby="spa-account-title">
-          <div className="spa-card-topline"><span className="spa-status"><i /> حساب محفوظ</span><span className="spa-kicker">ملف المتجر</span></div>
+          <div className="spa-card-topline"><span className="spa-status"><i /> {t("حساب محفوظ")}</span><span className="spa-kicker">{t("ملف المتجر")}</span></div>
           <div className="spa-account-heading">
-            <span className="spa-avatar" aria-hidden="true">{(user?.fullName || "م").trim().charAt(0)}</span>
-            <div><p className="spa-kicker">أهلًا بك</p><h1 id="spa-account-title">{user?.fullName || "حسابك"}</h1></div>
+            <span className="spa-avatar" aria-hidden="true">{(user?.fullName || t("م")).trim().charAt(0)}</span>
+            <div><p className="spa-kicker">{t("أهلًا بك")}</p><h1 id="spa-account-title">{user?.fullName || t("حسابك")}</h1></div>
           </div>
           <div className="spa-profile-list">
-            <div><span>الاسم الكامل</span><strong>{user?.fullName || "—"}</strong></div>
-            <div><span>البريد الإلكتروني</span><strong dir="ltr">{user?.email || "—"}</strong></div>
-            <div><span>حالة الملف</span><strong>{user?.profileCompleted ? "مكتمل" : "بيانات الحساب محفوظة"}</strong></div>
+            <div><span>{t("الاسم الكامل")}</span><strong>{user?.fullName || "—"}</strong></div>
+            <div><span>{t("البريد الإلكتروني")}</span><strong dir="ltr">{user?.email || "—"}</strong></div>
+            <div><span>{t("حالة الملف")}</span><strong>{user?.profileCompleted ? t("مكتمل") : t("بيانات الحساب محفوظة")}</strong></div>
           </div>
-          {(formMessage || notice) && <p className="spa-message is-success" role="status">{formMessage || notice}</p>}
+          {(formMessage || notice) && <p className="spa-message is-success" role="status">{t(formMessage || notice)}</p>}
           <div className="spa-account-actions">
-            <button className="spa-primary" type="button" onClick={beginEditing}>تعديل بيانات الحساب <AccountIcon name="arrow" /></button>
-            <p>بياناتك ومنتجاتك مرتبطة بحسابك وتبقى محفوظة عند دخولك مجددًا. بيانات وضع الزائر مستقلة.</p>
+            <button className="spa-primary" type="button" onClick={beginEditing}>{t("تعديل بيانات الحساب")} <AccountIcon name="arrow" /></button>
+            <p>{t("بياناتك ومنتجاتك مرتبطة بحسابك وتبقى محفوظة عند دخولك مجددًا. بيانات وضع الزائر مستقلة.")}</p>
           </div>
         </section>
       </div>
     );
   }
 
-  const title = isEdit ? "تعديل بيانات الحساب" : isSignup ? "افتح حسابك" : "مرحبًا بعودتك";
-  const intro = isEdit
+  const title = t(isEdit ? "تعديل بيانات الحساب" : isSignup ? "افتح حسابك" : "مرحبًا بعودتك");
+  const intro = t(isEdit
     ? "حدّث الاسم أو البريد. أدخل كلمة المرور الحالية لتأكيد التعديل."
     : isSignup
       ? "احفظ بيانات دخولك وارجع إلى مساحة تسعيرك متى احتجت."
-      : "سجّل الدخول للعودة إلى بيانات حسابك المحفوظة.";
+      : "سجّل الدخول للعودة إلى بيانات حسابك المحفوظة.");
 
   return (
-    <div className="spa-page" dir="rtl" lang="ar">
+    <div className="spa-page" dir={dir} lang={language}>
       <section className={`spa-card${isEdit ? " spa-edit-card" : ""}`} aria-labelledby="spa-form-title">
         <div className="spa-account-aside" aria-hidden="true">
           <div className="spa-aside-orbit spa-orbit-one" />
           <div className="spa-aside-orbit spa-orbit-two" />
           <span className="spa-aside-mark"><AccountIcon name="lock" /></span>
           <span className="spa-aside-wordmark">SMART PRICING <b>AI</b></span>
-          <p>أسعار أوضح.<br />قرارات أهدأ.</p>
-          <span className="spa-aside-note">مساحة عمل المتجر</span>
+          <p>{t('أسعار أوضح.')}<br />{t('قرارات أهدأ.')}</p>
+          <span className="spa-aside-note">{t('مساحة عمل المتجر')}</span>
         </div>
         <div className="spa-form-side">
-          <div className="spa-card-topline"><span className="spa-kicker">التسعير الذكي للمتاجر</span><span className="spa-locale">الكويت <i /> KWD</span></div>
+          <div className="spa-card-topline"><span className="spa-kicker">{t("التسعير الذكي للمتاجر")}</span><span className="spa-locale">{t("الكويت")} <i /> KWD</span></div>
           <div className="spa-heading">
             <span className="spa-form-icon"><AccountIcon name={isSignup ? "user" : "lock"} /></span>
-            <p className="spa-kicker">{isEdit ? "إعدادات الحساب" : isSignup ? "حساب جديد" : "تسجيل الدخول"}</p>
+            <p className="spa-kicker">{t(isEdit ? "إعدادات الحساب" : isSignup ? "حساب جديد" : "تسجيل الدخول")}</p>
             <h1 id="spa-form-title">{title}</h1>
             <p className="spa-intro">{intro}</p>
           </div>
 
           {(notice || formMessage) && (
             <p className={`spa-message ${!formMessage || messageKind === "success" ? "is-success" : "is-error"}`} role={formMessage && messageKind === "error" ? "alert" : "status"}>
-              {formMessage || notice}
+              {t(formMessage || notice)}
             </p>
           )}
 
@@ -330,26 +339,26 @@ export default function AccountPages({
             {isEdit && (
               <>
                 <AccountField id="currentPassword" label="كلمة المرور الحالية" type="password" value={form.currentPassword} onChange={updateField} autoComplete="current-password" placeholder="لتأكيد تعديل بياناتك" error={errors.currentPassword} maxLength={128} revealable revealed={Boolean(revealed.currentPassword)} onToggleReveal={() => toggleReveal("currentPassword")} />
-                <div className="spa-form-divider"><span>تغيير كلمة المرور اختياري</span></div>
+                <div className="spa-form-divider"><span>{t('تغيير كلمة المرور اختياري')}</span></div>
                 <AccountField id="newPassword" label="كلمة المرور الجديدة" type="password" value={form.newPassword} onChange={updateField} autoComplete="new-password" placeholder="اتركه فارغًا للإبقاء عليها" error={errors.newPassword} required={false} minLength={10} maxLength={128} revealable revealed={Boolean(revealed.newPassword)} onToggleReveal={() => toggleReveal("newPassword")} />
                 <AccountField id="confirmPassword" label="تأكيد كلمة المرور الجديدة" type="password" value={form.confirmPassword} onChange={updateField} autoComplete="new-password" placeholder="أعد كتابة كلمة المرور الجديدة" error={errors.confirmPassword} required={false} maxLength={128} revealable revealed={Boolean(revealed.confirmPassword)} onToggleReveal={() => toggleReveal("confirmPassword")} />
               </>
             )}
-            {isSignup && <p className="spa-privacy-note">سيكون لحسابك مساحة مستقلة. لا تنتقل الحسبات والمنتجات المجهولة تلقائيًا إلى الحساب.</p>}
+            {isSignup && <p className="spa-privacy-note">{t('سيكون لحسابك مساحة مستقلة. لا تنتقل الحسبات والمنتجات المجهولة تلقائيًا إلى الحساب.')}</p>}
             <button className="spa-primary spa-submit" type="submit" disabled={loading}>
-              <span>{loading ? "جارٍ حفظ البيانات…" : isEdit ? "حفظ التعديلات" : isSignup ? "إنشاء حساب" : "تسجيل الدخول"}</span>
+              <span>{t(loading ? "جارٍ حفظ البيانات…" : isEdit ? "حفظ التعديلات" : isSignup ? "إنشاء حساب" : "تسجيل الدخول")}</span>
               {!loading && <AccountIcon name="arrow" />}
             </button>
-            {isEdit && <button className="spa-secondary" type="button" onClick={cancelEditing} disabled={loading}>إلغاء التعديل</button>}
+            {isEdit && <button className="spa-secondary" type="button" onClick={cancelEditing} disabled={loading}>{t('إلغاء التعديل')}</button>}
           </form>
 
           {!isEdit && (
             <div className="spa-switch">
-              <span>{isSignup ? "لديك حساب بالفعل؟" : "ليس لديك حساب؟"}</span>
-              <button type="button" onClick={(event) => goTo(isSignup ? "signin" : "signup", event)}>{isSignup ? "تسجيل الدخول" : "إنشاء حساب"}</button>
+              <span>{t(isSignup ? "لديك حساب بالفعل؟" : "ليس لديك حساب؟")}</span>
+              <button type="button" onClick={(event) => goTo(isSignup ? "signin" : "signup", event)}>{t(isSignup ? "تسجيل الدخول" : "إنشاء حساب")}</button>
             </div>
           )}
-          <p className="spa-footnote">بيانات حسابك محفوظة بأمان في مساحة مستقلة عن جلسة التصفح.</p>
+          <p className="spa-footnote">{t('بيانات حسابك محفوظة بأمان في مساحة مستقلة عن جلسة التصفح.')}</p>
         </div>
       </section>
     </div>

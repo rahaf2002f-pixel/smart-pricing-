@@ -2,8 +2,9 @@ import { Router } from "express";
 import { randomBytes } from "node:crypto";
 import User from "../models/User.js";
 import AuthSession from "../models/AuthSession.js";
+import { notifySafely, notificationDay, fingerprint } from "../services/notifications.js";
 import { hashPassword, verifyPassword, hashSessionToken, publicUser, validateAccount } from "../services/auth.js";
-import { AUTH_COOKIE, SESSION_LIFETIME, cookieOptions, requireAccountDatabase } from "../middleware/account.js";
+import { AUTH_COOKIE, SESSION_LIFETIME, cookieOptions, requireAccountDatabase, protectWorkspace } from "../middleware/account.js";
 
 const router = Router();
 const attempts = new Map();
@@ -57,8 +58,9 @@ router.post("/register", requireAccountDatabase, rateLimit, async (req, res, nex
   const { values, errors } = validateAccount(req.body);
   if (errors) return res.status(400).json({ message: "تحقق من بيانات التسجيل.", errors });
   try {
-    const user = await User.create({ ...values, passwordHash: await hashPassword(req.body.password) });
+    const user = await User.create({ ...values, preferredLanguage: req.language, passwordHash: await hashPassword(req.body.password) });
     await signIn(req, res, user);
+    await notifySafely(user._id, "account_created", "account-created");
     return res.status(201).json({ user: publicUser(user), message: "تم إنشاء حسابك بنجاح وحفظ بياناته." });
   } catch (error) { return authError(error, res, next); }
 });
@@ -86,6 +88,15 @@ router.post("/logout", async (req, res, next) => {
   } catch (error) { return next(error); }
 });
 
+router.patch("/preferences", requireAccountDatabase, protectWorkspace, async (req, res, next) => {
+  if (!["ar", "en"].includes(req.body?.language)) return res.status(400).json({ message: "اختر العربية أو الإنجليزية." });
+  try {
+    const user = await User.findByIdAndUpdate(req.user._id, { $set: { preferredLanguage: req.body.language } }, { returnDocument: "after", runValidators: true });
+    if (!user) return res.status(401).json({ message: "تعذر العثور على الحساب. سجّل الدخول مجددًا." });
+    return res.json({ user: publicUser(user), message: "تم حفظ اللغة المفضلة." });
+  } catch (error) { return next(error); }
+});
+
 router.patch("/profile", requireAccountDatabase, rateLimit, async (req, res, next) => {
   if (!req.user) return res.status(401).json({ message: "سجّل الدخول لتعديل بياناتك." });
   const { values, errors } = validateAccount(req.body, { passwordRequired: false });
@@ -109,6 +120,7 @@ router.patch("/profile", requireAccountDatabase, rateLimit, async (req, res, nex
     if (newPassword || existing.email !== values.email) {
       await AuthSession.deleteMany({ userId: user._id, _id: { $ne: req.accountSession._id } });
     }
+    await notifySafely(user._id, "profile_updated", `profile:${notificationDay()}:${fingerprint(values)}`);
     return res.json({ user: publicUser(user), message: "تم تحديث بيانات حسابك دون إنشاء حساب جديد." });
   } catch (error) { return authError(error, res, next); }
 });

@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { notifySafely, fingerprint, notificationDay } from "../services/notifications.js";
 import { calculateProductPricing, calculateProfitAtPrice, validateProductInput } from "../services/products.js";
 
 const router = Router();
@@ -92,11 +93,13 @@ router.post("/:sessionId", async (req, res) => {
         messages: [
           {
             role: "system",
-            content: "أنت مساعد تسعير لمتجر صغير في الكويت. أجب بالعربية باختصار وبناءً على الأرقام المرفقة فقط. لا تعِد حساب الأرقام ولا تخترع أسعارًا أو رسومًا؛ الحسابات البرمجية نهائية. فسّر ملاءمة السعر والهامش وتأثير الخصم، وقدّم خطوة عملية واحدة لتقليل التكلفة أو تحسين الربح. وضّح إذا كان الخصم يجعل الربح سالبًا أو منخفضًا.",
+            content: req.language === "en"
+              ? "You advise small Kuwaiti stores on pricing. Reply concisely in English using only the supplied metrics. Do not recalculate or invent prices or fees; server calculations are final. Explain the price, margin and discount impact, and give one practical step to reduce costs or improve profit. State clearly if the discount makes profit negative or low."
+              : "أنت مساعد تسعير لمتجر صغير في الكويت. أجب بالعربية باختصار وبناءً على الأرقام المرفقة فقط. لا تعِد حساب الأرقام ولا تخترع أسعارًا أو رسومًا؛ الحسابات البرمجية نهائية. فسّر ملاءمة السعر والهامش وتأثير الخصم، وقدّم خطوة عملية واحدة لتقليل التكلفة أو تحسين الربح. وضّح إذا كان الخصم يجعل الربح سالبًا أو منخفضًا.",
           },
           {
             role: "user",
-            content: `حلّل هذه النتائج الرقمية المحسوبة برمجيًا وقدّم نصيحة عربية موجزة:\n${JSON.stringify(metrics)}`,
+            content: `${req.language === "en" ? "Explain these server-calculated results with concise English advice:" : "حلّل هذه النتائج الرقمية المحسوبة برمجيًا وقدّم نصيحة عربية موجزة:"}\n${JSON.stringify(metrics)}`,
           },
         ],
       }),
@@ -110,7 +113,8 @@ router.post("/:sessionId", async (req, res) => {
     if (typeof advice !== "string" || !advice.trim()) {
       return res.status(502).json({ message: "لم يصل اقتراح صالح من OpenRouter. أعد المحاولة." });
     }
-    return res.json({ advice: advice.trim().slice(0, 2400), metrics });
+    await notifySafely(req.user._id, "ai_ready", `ai:${notificationDay()}:${req.language}:${fingerprint(metrics)}`);
+    return res.json({ advice: advice.trim().slice(0, 2400), metrics, language: req.language });
   } catch (error) {
     if (error?.name === "TimeoutError" || error?.name === "AbortError") {
       return res.status(504).json({ message: "تأخر رد OpenRouter. أعد المحاولة بعد قليل." });
