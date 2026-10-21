@@ -9,8 +9,10 @@ the frontend.
 
 ## Product scope
 
-- The four imported Stitch screens are presented vertically in this order:
-  start, pricing calculator, detailed product pricing, and product catalog.
+- Preserve the four imported Stitch screens and their basic design. Navigation
+  shows only the selected screen or subsection, immediately from the top, without
+  scrolling through earlier screens. Preserve entered values when switching
+  destinations and support browser back/forward navigation.
 - Calculate per-item and batch costs, expected profit, margin, and suggested
   selling prices using purchase, packaging, delivery, fixed or percentage-based
   payment fees, marketing, operational, and custom costs.

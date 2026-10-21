@@ -7,7 +7,7 @@
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
 }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; background: #f7f9fc; }
@@ -721,6 +721,124 @@ a { color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion:reduce) {
   .sp-art-frame,.sp-art-halo,.sp-mark svg { animation:none!important; }
   .sp-hero-artwork,.sp-mark { transition:none!important; transform:none!important; }
+}
+
+/* Page-style navigation keeps the existing screens and their form state intact. */
+.sp-main > .sp-section { display:none; }
+.sp-main[data-active-section="start"] > #start,
+.sp-main[data-active-section="calculator"] > #calculator,
+.sp-main[data-active-section="market-comparison"] > #calculator,
+.sp-main[data-active-section="details"] > #details,
+.sp-main[data-active-section="store-settings"] > #details,
+.sp-main[data-active-section="payment-settings"] > #details,
+.sp-main[data-active-section="ai-advice"] > #details,
+.sp-main[data-active-section="catalog"] > #catalog { display:block; }
+.sp-main[data-active-section="start"] > #start { display:grid; }
+
+.sp-main[data-active-section="market-comparison"] #calculator .sp-form-card,
+.sp-main[data-active-section="market-comparison"] #calculator .sp-price-card,
+.sp-main[data-active-section="market-comparison"] #calculator .sp-results > .sp-button,
+.sp-main[data-active-section="market-comparison"] #calculator .sp-formula,
+.sp-main[data-active-section="store-settings"] #details > .sp-section-intro,
+.sp-main[data-active-section="store-settings"] #details > .sp-editor-grid,
+.sp-main[data-active-section="payment-settings"] #details > .sp-section-intro,
+.sp-main[data-active-section="payment-settings"] #details > .sp-editor-grid,
+.sp-main[data-active-section="payment-settings"] #store-settings .sp-default-settings-heading,
+.sp-main[data-active-section="payment-settings"] #store-settings .sp-editor-field:not(#payment-settings),
+.sp-main[data-active-section="ai-advice"] #details > .sp-default-settings,
+.sp-main[data-active-section="ai-advice"] #details > .sp-section-intro,
+.sp-main[data-active-section="ai-advice"] #details > .sp-alert,
+.sp-main[data-active-section="ai-advice"] #details .sp-editor-form > .sp-editor-panel:not(.sp-advice-panel),
+.sp-main[data-active-section="ai-advice"] #details .sp-editor-actions,
+.sp-main[data-active-section="ai-advice"] #details .sp-editor-summary { display:none; }
+
+.sp-main[data-active-section="details"] #store-settings { display:none; }
+.sp-main[data-active-section="store-settings"] #details > .sp-heading > button,
+.sp-main[data-active-section="payment-settings"] #details > .sp-heading > button,
+.sp-main[data-active-section="ai-advice"] #details > .sp-heading > button { display:none; }
+.sp-main[data-active-section="payment-settings"] #store-settings .sp-editor-fields { grid-template-columns:minmax(0,1fr); }
+.sp-main[data-active-section="market-comparison"] #calculator .sp-workspace { grid-template-columns:minmax(0,1fr); }
+.sp-main[data-active-section="market-comparison"] #calculator .sp-results { grid-template-columns:minmax(0,1fr); max-width:780px; margin-inline:auto; }
+.sp-main[data-active-section="market-comparison"] #calculator .sp-compare-card { width:100%; }
+.sp-main[data-active-section="ai-advice"] #details .sp-editor-grid { display:block; }
+.sp-main[data-active-section="ai-advice"] #details .sp-editor-form { max-width:820px; margin-inline:auto; }
+.sp-main[data-active-section="ai-advice"] #details .sp-advice-panel { padding:clamp(20px,4vw,34px); }
+
+/* Responsive type scale: larger labels, readable body text, and touch-friendly controls. */
+:root {
+  --type-compact:clamp(12px,calc(11.4px + .18vw),14px);
+  --type-label:clamp(14px,calc(13px + .22vw),16px);
+  --type-body:clamp(16px,calc(15px + .28vw),18px);
+  --type-control:clamp(16px,calc(15px + .28vw),18px);
+  --type-subheading:clamp(20px,calc(18px + .55vw),24px);
+  --type-heading:clamp(26px,calc(23px + .9vw),34px);
+}
+.sp-brand strong { font-size:var(--type-label)!important; }
+.sp-brand small,.sp-currency,.sp-account-chip small { font-size:var(--type-compact)!important; }
+.sp-account-chip strong,.sp-add-custom,.sp-margin-heading output,
+.sp-scenario-heading h4,.sp-scenario-label strong,.sp-editor-price > div b { font-size:var(--type-label)!important; }
+.sp-hero-locale,.sp-unit-control span,.sp-advice-heading > span,
+.sp-pill,.sp-hero-note { font-size:var(--type-compact)!important; }
+.sp-side-group-label,.sp-side-link { font-size:var(--type-label)!important; }
+.sp-side-foot small,.sp-side-foot strong span { font-size:var(--type-compact)!important; }
+.sp-side-foot strong { font-size:var(--type-label)!important; }
+.sp-hero-card h1 { font-size:var(--type-heading)!important; line-height:1.35; }
+.sp-hero-card > p,.sp-benefits span,.sp-primary-cta,.sp-button { font-size:var(--type-body)!important; }
+.sp-primary-cta,.sp-button { min-height:48px; }
+.sp-heading h2 { font-size:var(--type-heading)!important; line-height:1.35; }
+.sp-form-head h3,.sp-compare-heading h3,.sp-product-context h3,.sp-editor-panel h3,
+.sp-default-settings-heading h3,.sp-advice-heading h3,.sp-empty h3,.sp-product-card h3 { font-size:var(--type-subheading)!important; line-height:1.45; }
+.sp-kicker,.sp-subtitle,.sp-help,.sp-field-name,.sp-total-label,.sp-margin-heading label,
+.sp-result-top,.sp-compare-field,.sp-compare-help,.sp-product-context p,.sp-editor-field label,
+.sp-toolbar select,.sp-search input,.sp-context-meta span,.sp-default-settings-heading p,
+.sp-advice-heading p,.sp-discount-help,.sp-footer,.sp-pagination,.sp-empty p,
+.sp-empty button { font-size:var(--type-label)!important; line-height:1.55; }
+.sp-field-note,.sp-currency-label,.sp-field-number,.sp-cost-total small,.sp-margin-heading small,
+.sp-range-labels,.sp-step,.sp-result-caption,.sp-margin-tag,.sp-key-stats > div span:first-child,
+.sp-distribution-head,.sp-distribution-legend,.sp-compare-stats > div > span,.sp-formula,
+.sp-editor-price small,.sp-editor-price > div span,.sp-editor-hint,.sp-alert,.sp-inline-warning,
+.sp-kpi label,.sp-kpi strong small,.sp-table th,.sp-table td,.sp-product-cell strong,
+.sp-product-cell small,.sp-category-chip,.sp-margin-chip,.sp-status,.sp-product-card-meta,
+.sp-product-card-values small,.sp-product-card-values b,.sp-page-button,.sp-scenario-heading p,
+.sp-scenario-heading > span,.sp-scenario-label small,.sp-scenario > div small,.sp-scenario > div b,
+.sp-scenario > div i,.sp-scenario-footnote,.sp-view-toggle button,.sp-default-settings-heading > span,
+.sp-default-settings-actions > span,.sp-discount-control > span,.sp-discount-control button,
+.sp-discount-results small,.sp-discount-results span,.sp-discount-results strong,.sp-advice-result,
+.sp-fee-type,.sp-fee-editor-row select,.sp-default-payment-row select { font-size:var(--type-compact)!important; line-height:1.55; }
+.sp-money b { font-size:clamp(18px,calc(17px + .25vw),20px)!important; }
+.sp-money small { font-size:var(--type-compact)!important; }
+.sp-price b { font-size:clamp(38px,5vw,54px)!important; }
+.sp-price small { font-size:var(--type-subheading)!important; }
+.sp-key-stats .sp-money b,.sp-compare-stats .sp-money b,.sp-compare-stats strong { font-size:var(--type-label)!important; }
+.sp-price-card .sp-stat-cost .sp-money b { color:#f2f6ff; }
+.sp-price-card .sp-stat-cost .sp-money small { color:#bfccdc; }
+.sp-advice-result { font-size:var(--type-body)!important; line-height:1.9; }
+.sp-editor-price strong { font-size:clamp(34px,4vw,46px)!important; }
+.sp-kpi strong { font-size:clamp(22px,calc(20px + .5vw),26px)!important; }
+.sp-input-shell,.sp-compare-field .sp-input-shell { height:48px; }
+.sp-editor-field input,.sp-editor-field select,.sp-custom-row input,.sp-discount-control input,
+.sp-unit-control input,.sp-fee-type,.sp-fee-editor-row select,.sp-default-payment-row select {
+  min-height:46px;
+  font-size:var(--type-control)!important;
+}
+.sp-input-shell input,.sp-search input,.sp-toolbar select,.sp-table input,.sp-page-button {
+  font-size:var(--type-control)!important;
+}
+.sp-search input,.sp-toolbar select { min-height:46px; }
+.sp-product-card-actions .sp-button { min-height:44px; font-size:var(--type-label)!important; }
+.sp-page-button { min-height:40px; height:auto; }
+.sp-presets button,.sp-discount-control button,.sp-view-toggle button { min-height:42px; font-size:var(--type-label)!important; }
+
+@media (max-width:600px) {
+  .sp-fields,.sp-editor-fields { grid-template-columns:minmax(0,1fr); }
+  .sp-field-heading { align-items:flex-start; }
+  .sp-side-link { min-height:46px; }
+  .sp-main[data-active-section="market-comparison"] #calculator .sp-compare-stats { gap:10px; }
+  .sp-main[data-active-section="market-comparison"] #calculator .sp-compare-stats > div + div { padding-right:10px; }
+  .sp-editor-grid { gap:14px; }
+  .sp-custom-row { grid-template-columns:minmax(0,1fr) 100px 40px; }
+  .sp-toolbar select { width:100%; }
+  .sp-hero-card h1 { font-size:clamp(28px,7vw,34px)!important; }
 }
 
 @media (max-width:1000px) {

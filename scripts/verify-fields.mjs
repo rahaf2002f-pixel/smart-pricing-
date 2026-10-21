@@ -82,13 +82,42 @@ try {
   await check("All eight sidebar destinations and current-section indicators", async () => {
     const ids = await evaluate(`[...document.querySelectorAll(".sp-sidebar .sp-side-link")].map(a => a.hash.slice(1))`);
     assert.equal(ids.length, 8);
+    const parents = {
+      start: "start", calculator: "calculator", "market-comparison": "calculator",
+      details: "details", "store-settings": "details", "payment-settings": "details",
+      "ai-advice": "details", catalog: "catalog",
+    };
     for (const id of ids) {
       await click(`.sp-sidebar a[href="#${id}"]`);
-      await pause(850);
-      const position = await evaluate(`document.getElementById(${JSON.stringify(id)}).getBoundingClientRect().top`);
-      assert(position >= 45 && position <= 181, `${id} position ${position}`);
-      assert.equal(await evaluate(`document.querySelector(".sp-sidebar a[aria-current]")?.hash`), `#${id}`, `${id} at ${position}px`);
+      await waitFor(`document.querySelector(".sp-main").dataset.activeSection===${JSON.stringify(id)}`);
+      assert.equal(await evaluate(`window.location.hash`), `#${id}`);
+      assert.equal(await evaluate(`window.scrollY`), 0, `${id} should start at the top`);
+      const displayedPages = await evaluate(`[...document.querySelectorAll(".sp-main > .sp-section")].filter(section=>getComputedStyle(section).display!=="none").map(section=>section.id)`);
+      assert.deepEqual(displayedPages, [parents[id]], `visible page for ${id}`);
+      assert.equal(await evaluate(`document.querySelector(".sp-sidebar a[aria-current]")?.hash`), `#${id}`, id);
+      const destinationVisible = await evaluate(`(() => {
+        const shown = selector => document.querySelector(selector).getClientRects().length > 0;
+        if (${JSON.stringify(id)} === "market-comparison") return shown("#market-comparison") && !shown("#calculator .sp-form-card");
+        if (${JSON.stringify(id)} === "details") return shown("#details .sp-editor-grid") && !shown("#store-settings");
+        if (${JSON.stringify(id)} === "store-settings") return shown("#store-settings") && !shown("#details .sp-editor-grid");
+        if (${JSON.stringify(id)} === "payment-settings") return shown("#payment-settings") && !shown("#default-delivery-fee");
+        if (${JSON.stringify(id)} === "ai-advice") return shown("#ai-advice") && !shown(".sp-scenario-block");
+        return true;
+      })()`);
+      assert(destinationVisible, `subpage contents for ${id}`);
     }
+    await evaluate(`window.history.back()`);
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="store-settings"`);
+    await evaluate(`window.history.forward()`);
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="payment-settings"`);
+    await click('.sp-sidebar a[href="#start"]');
+    await click(".sp-primary-cta");
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="calculator"`);
+    await click(".sp-brand");
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="start"`);
+    await click(".sp-notice");
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="store-settings"`);
+    await click('.sp-sidebar a[href="#start"]');
   });
   await check("Start button and fixed-fee calculator fields", async () => {
     await click(".sp-primary-cta");
@@ -134,11 +163,13 @@ try {
     assert.equal(await value('#calculator input[aria-label="رسوم الدفع الإلكتروني"]'), "2");
   });
   await check("Default fee fields, saving settings and new-product defaults", async () => {
+    await click('.sp-sidebar a[href="#store-settings"]');
     await fill("#default-delivery-fee", "1.25");
     await fill('select[aria-label="نوع رسوم الدفع الافتراضية"]', "percentage");
     await fill("#default-payment-fee", "2.5");
     await click("#store-settings button[type=submit]");
     await waitFor(`document.querySelector(".sp-default-settings-actions").innerText.includes("تم حفظ")`);
+    await click('.sp-sidebar a[href="#details"]');
     await click("#details .sp-heading button");
     assert.equal(await value("#editor-deliveryCost"), "1.25");
     assert.equal(await value("#editor-paymentFee"), "2.5");
@@ -239,9 +270,16 @@ try {
     await fill('#calculator input[aria-label="تكلفة شراء المنتج"]', "11.25");
     assert.equal(await value('#calculator input[aria-label="تكلفة شراء المنتج"]'), "11.25");
     assert(await evaluate(`document.documentElement.scrollWidth<=window.innerWidth`));
+    for (const width of [320, 768, 1024, 1440]) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: width <= 760 });
+      await pause(120);
+      assert(await evaluate(`document.documentElement.scrollWidth<=window.innerWidth`), `horizontal overflow at ${width}px`);
+      assert.equal(await evaluate(`document.querySelector(".sp-main").dataset.activeSection`), "calculator");
+    }
   });
   await check("Delete own test product and confirm persistent deletion", async () => {
     await send("Emulation.setDeviceMetricsOverride", { width: 1024, height: 819, deviceScaleFactor: 1, mobile: false });
+    await click('.sp-sidebar a[href="#catalog"]');
     await click('button[title="عرض جدولي"]');
     await evaluate(`window.confirm=()=>true`);
     await click(`button[aria-label="حذف ${name}"]`);

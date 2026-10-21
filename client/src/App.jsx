@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import pricingLogo from "./assets/pricing-logo.png";
 import { normalizeCalculatorInputs, sanitizeNumericInput, updateCalculatorInputs } from "./calculatorInputs.js";
 import {
@@ -62,6 +62,12 @@ const SIDEBAR_GROUPS = [
     ],
   },
 ];
+const NAVIGATION_IDS = SIDEBAR_GROUPS.flatMap((group) => group.items.map((item) => item.id));
+
+function sectionFromLocation() {
+  const requestedSection = window.location.hash.slice(1);
+  return NAVIGATION_IDS.includes(requestedSection) ? requestedSection : "start";
+}
 
 const EMPTY_PRODUCT = {
   name: "",
@@ -151,10 +157,6 @@ function getSessionId() {
   return sessionId;
 }
 
-function scrollTo(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
 function makeEditorProduct(product = null) {
   if (!product) return { ...EMPTY_PRODUCT, customCosts: [] };
   const usesSuggestedPrice = Math.abs(Number(product.sellingPrice) - Number(product.suggestedSellingPrice)) < 0.0005;
@@ -221,7 +223,7 @@ function App() {
   const [adviceError, setAdviceError] = useState("");
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
-  const [activeSection, setActiveSection] = useState("start");
+  const [activeSection, setActiveSection] = useState(sectionFromLocation);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -237,6 +239,19 @@ function App() {
   const [productNotice, setProductNotice] = useState("");
   const initialized = useRef(false);
   const sessionRef = useRef(null);
+
+  function navigateTo(sectionId, event) {
+    event?.preventDefault();
+    if (!NAVIGATION_IDS.includes(sectionId)) return;
+
+    const nextHash = `#${sectionId}`;
+    if (window.location.hash !== nextHash) {
+      window.history.pushState({ sectionId }, "", nextHash);
+    }
+    setActiveSection(sectionId);
+    setSidebarOpen(false);
+    window.scrollTo(0, 0);
+  }
 
   const results = useMemo(() => {
     const baseCost = FIELDS
@@ -369,34 +384,24 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const sections = ["start", "calculator", "market-comparison", "details", "store-settings", "payment-settings", "ai-advice", "catalog"]
-      .map((id) => document.getElementById(id))
-      .filter(Boolean);
-    let frameId = 0;
-    const updateActiveSection = () => {
-      if (frameId) return;
-      frameId = window.requestAnimationFrame(() => {
-        frameId = 0;
-        const activationLine = (document.querySelector(".sp-header")?.offsetHeight ?? 51) + 32;
-        const atPageBottom = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
-        const current = atPageBottom
-          ? "catalog"
-          : sections.reduce(
-            (active, section) => section.getBoundingClientRect().top <= activationLine ? section.id : active,
-            "start",
-          );
-        setActiveSection(current);
-      });
-    };
-    window.addEventListener("scroll", updateActiveSection, { passive: true });
-    window.addEventListener("resize", updateActiveSection);
-    updateActiveSection();
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    const syncSectionFromLocation = () => setActiveSection(sectionFromLocation());
+    if (!window.location.hash) {
+      window.history.replaceState({ sectionId: "start" }, "", "#start");
+    }
+    window.addEventListener("popstate", syncSectionFromLocation);
+    window.addEventListener("hashchange", syncSectionFromLocation);
     return () => {
-      window.removeEventListener("scroll", updateActiveSection);
-      window.removeEventListener("resize", updateActiveSection);
-      if (frameId) window.cancelAnimationFrame(frameId);
+      window.removeEventListener("popstate", syncSectionFromLocation);
+      window.removeEventListener("hashchange", syncSectionFromLocation);
+      window.history.scrollRestoration = previousScrollRestoration;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [activeSection]);
 
   useEffect(() => {
     if (!initialized.current || !sessionRef.current) return undefined;
@@ -460,7 +465,7 @@ function App() {
       paymentFeeType: inputs.paymentFeeType,
       targetMarginPercent: String(inputs.targetMarginPercent),
     });
-    scrollTo("details");
+    navigateTo("details");
   }
 
   function startNewProduct(shouldScroll = false) {
@@ -471,7 +476,7 @@ function App() {
     setDiscountPercent("0");
     setAdvice("");
     setAdviceError("");
-    if (shouldScroll) scrollTo("details");
+    if (shouldScroll) navigateTo("details");
   }
 
   function editProduct(product) {
@@ -479,7 +484,7 @@ function App() {
     setEditor(makeEditorProduct(product));
     setProductError("");
     setProductNotice("");
-    scrollTo("details");
+    navigateTo("details");
   }
 
   async function refreshProducts() {
@@ -685,19 +690,19 @@ function App() {
   return (
     <div className="stitch-pricing" dir="rtl" lang="ar">
       <header className="sp-header">
-        <a className="sp-brand" href="#start" aria-label="التسعير الذكي للمتاجر، الصفحة الرئيسية" onClick={animatePricingLogo}>
+        <a className="sp-brand" href="#start" aria-label="التسعير الذكي للمتاجر، الصفحة الرئيسية" onClick={(event) => { navigateTo("start", event); animatePricingLogo(event); }}>
           <div className="sp-mark" aria-hidden="true"><Icon name="sparkles" /></div>
           <div><strong>التسعير الذكي للمتاجر</strong><small>Smart Pricing AI · GCC Engine</small></div>
         </a>
         <div className="sp-header-side">
-          <a className="sp-account-chip" href="#catalog">
+          <a className="sp-account-chip" href="#catalog" onClick={(event) => navigateTo("catalog", event)}>
             <span className="sp-account-mark"><Icon name="package" /></span>
             <span><strong>{editor.name.trim() || "متجرك"}</strong><small>{editingId ? "منتجك الحالي" : "محاكي التسعير"}</small></span>
           </a>
-          <a className="sp-notice" href="#store-settings" aria-label="إعدادات الرسوم والعملة" title="إعدادات الرسوم والعملة">
+          <a className="sp-notice" href="#store-settings" onClick={(event) => navigateTo("store-settings", event)} aria-label="إعدادات الرسوم والعملة" title="إعدادات الرسوم والعملة">
             <Icon name="settings" /><i />
           </a>
-          <a className="sp-currency" href="#store-settings"><i /> الكويت · د.ك (KWD)</a>
+          <a className="sp-currency" href="#store-settings" onClick={(event) => navigateTo("store-settings", event)}><i /> الكويت · د.ك (KWD)</a>
           <span className={`sp-local connection-${connection}`} role="status" aria-live="polite" title={connectionText}>
             <i /><span className="sp-sr-only">{connectionText}</span>
           </span>
@@ -716,7 +721,7 @@ function App() {
                 {items.map(({ id, label, icon, accent }) => {
                   const isActive = activeSection === id;
                   return (
-                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}`} href={`#${id}`} aria-current={isActive ? "location" : undefined} onClick={() => setSidebarOpen(false)}>
+                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}`} href={`#${id}`} aria-current={isActive ? "location" : undefined} onClick={(event) => navigateTo(id, event)}>
                       <Icon name={icon} /><span>{label}</span>
                     </a>
                   );
@@ -731,7 +736,7 @@ function App() {
         </div>
       </aside>
 
-      <main className="sp-main">
+      <main className="sp-main" data-active-section={activeSection}>
         <section className="sp-section sp-hero-section" id="start">
           <div className="sp-hero-card">
             <PricingArtwork />
@@ -743,7 +748,7 @@ function App() {
               <span><Icon name="settings" /> كشف التكاليف وبوابات الدفع <Icon name="sparkles" /></span>
               <span><Icon name="package" /> سعر البيع الأمثل <Icon name="chart" /></span>
             </div>
-            <a className="sp-primary-cta" href="#calculator">
+            <a className="sp-primary-cta" href="#calculator" onClick={(event) => navigateTo("calculator", event)}>
               <Icon name="calculator" /><span>ابدأ التسعير الآن</span><Icon name="arrow" />
             </a>
           </div>
@@ -753,11 +758,11 @@ function App() {
           <div className="sp-heading">
             <div className="sp-heading-main">
               <div className="sp-title-icon"><Icon name="calculator" /></div>
-              <div><p className="sp-kicker">محرك التسعير · د.ك</p><h2>حاسبة تسعير المنتج</h2><p className="sp-subtitle">أدخل تكاليف القطعة وشاهد السعر والربح المتوقعين مباشرة.</p></div>
+              <div><p className="sp-kicker">{activeSection === "market-comparison" ? "تحليل السعر · د.ك" : "محرك التسعير · د.ك"}</p><h2>{activeSection === "market-comparison" ? "مقارنة أسعار البيع" : "حاسبة تسعير المنتج"}</h2><p className="sp-subtitle">{activeSection === "market-comparison" ? "قارن أثر تغييرات السعر على الربح والهامش مباشرة." : "أدخل تكاليف القطعة وشاهد السعر والربح المتوقعين مباشرة."}</p></div>
             </div>
             <div className="sp-heading-actions">
-              <a className="sp-button sp-button-light" href="#catalog">قائمة المنتجات <Icon name="package" /></a>
-              <a className="sp-button sp-button-light" href="#start">العودة للبداية <Icon name="arrow" /></a>
+              <a className="sp-button sp-button-light" href="#catalog" onClick={(event) => navigateTo("catalog", event)}>قائمة المنتجات <Icon name="package" /></a>
+              <a className="sp-button sp-button-light" href="#start" onClick={(event) => navigateTo("start", event)}>العودة للبداية <Icon name="arrow" /></a>
             </div>
           </div>
 
@@ -837,14 +842,18 @@ function App() {
           <div className="sp-heading">
             <div className="sp-heading-main">
               <div className="sp-title-icon"><Icon name="package" /></div>
-              <div><p className="sp-kicker">إعداد منتج · التكاليف الشاملة</p><h2>محرر التسعير التفصيلي</h2><p className="sp-subtitle">سجّل المنتج وكل ما يدخل في تكلفة القطعة والدفعة.</p></div>
+              <div>
+                <p className="sp-kicker">{activeSection === "ai-advice" ? "تحليل المنتج · توصيات ذكية" : activeSection === "store-settings" || activeSection === "payment-settings" ? "إعدادات متجرك" : "إعداد منتج · التكاليف الشاملة"}</p>
+                <h2>{activeSection === "ai-advice" ? "اقتراحات الذكاء الاصطناعي" : activeSection === "store-settings" ? "الرسوم الافتراضية" : activeSection === "payment-settings" ? "رسوم الدفع وKNET" : "محرر التسعير التفصيلي"}</h2>
+                <p className="sp-subtitle">{activeSection === "ai-advice" ? "راجع تكاليف المنتج وسعره ثم احصل على اقتراح مبني على بياناته." : activeSection === "store-settings" || activeSection === "payment-settings" ? "حدّد الرسوم التي تريد تطبيقها افتراضيًا على منتجات متجرك." : "سجّل المنتج وكل ما يدخل في تكلفة القطعة والدفعة."}</p>
+              </div>
             </div>
             <button className="sp-button sp-button-light" type="button" onClick={() => startNewProduct()}>منتج جديد <Icon name="plus" /></button>
           </div>
 
           <form className="sp-default-settings" id="store-settings" onSubmit={saveStoreSettings}>
             <div className="sp-default-settings-heading">
-              <div><h3>رسوم متجرك الافتراضية</h3><p>تُستخدم تلقائيًا عند إنشاء منتج جديد، ويمكن تعديلها داخل كل منتج.</p></div>
+                <div><h3>{activeSection === "payment-settings" ? "رسوم بوابة الدفع" : "رسوم متجرك الافتراضية"}</h3><p>{activeSection === "payment-settings" ? "حدّد نسبة أو قيمة KNET / MyFatoorah التي تُضاف على كل طلب." : "تُستخدم تلقائيًا عند إنشاء منتج جديد، ويمكن تعديلها داخل كل منتج."}</p></div>
               <span>إعدادات هذه الجلسة</span>
             </div>
             <div className="sp-editor-fields">
