@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import mongoose from "mongoose";
 import { createServer as createViteServer } from "vite";
 import app from "./app.js";
+import { initializeAccounts } from "./middleware/account.js";
 
 const port = Number(process.env.PORT) || 5000;
 const server = http.createServer(app);
@@ -16,6 +17,8 @@ async function start() {
         serverSelectionTimeoutMS: 8000,
       });
       console.log("MongoDB connected.");
+      await initializeAccounts();
+      console.log("Account storage and unique indexes ready.");
     } catch (error) {
       console.error("MongoDB connection failed:", error.message);
     }

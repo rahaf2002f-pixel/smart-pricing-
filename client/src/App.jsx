@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import pricingLogo from "./assets/pricing-logo.png";
+import AccountPages from "./components/AccountPages.jsx";
 import { normalizeCalculatorInputs, sanitizeNumericInput, updateCalculatorInputs } from "./calculatorInputs.js";
 import {
   createProduct,
@@ -62,7 +63,7 @@ const SIDEBAR_GROUPS = [
     ],
   },
 ];
-const NAVIGATION_IDS = SIDEBAR_GROUPS.flatMap((group) => group.items.map((item) => item.id));
+const NAVIGATION_IDS = [...SIDEBAR_GROUPS.flatMap((group) => group.items.map((item) => item.id)), "signup", "signin", "account"];
 
 function sectionFromLocation() {
   const requestedSection = window.location.hash.slice(1);
@@ -209,9 +210,15 @@ function isUntouchedProduct(editor) {
     && editor.sellingPrice === "";
 }
 
-function App() {
+function App({ user, accountNotice, accountBusy, accountError, onAuthenticated, onUserUpdated, onLogout }) {
+  function currentSection() {
+    const requested = sectionFromLocation();
+    if (user && ["signup", "signin"].includes(requested)) return "account";
+    if (!user && !["start", "signup", "signin"].includes(requested)) return "start";
+    return requested;
+  }
   const [inputs, setInputs] = useState(DEFAULTS);
-  const [connection, setConnection] = useState("checking");
+  const [connection, setConnection] = useState(user ? "checking" : "guest");
   const [sessionId, setSessionId] = useState("");
   const [products, setProducts] = useState([]);
   const [productsState, setProductsState] = useState("loading");
@@ -223,7 +230,7 @@ function App() {
   const [adviceError, setAdviceError] = useState("");
   const [adviceLoading, setAdviceLoading] = useState(false);
   const [catalogError, setCatalogError] = useState("");
-  const [activeSection, setActiveSection] = useState(sectionFromLocation);
+  const [activeSection, setActiveSection] = useState(currentSection);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -243,6 +250,9 @@ function App() {
   function navigateTo(sectionId, event) {
     event?.preventDefault();
     if (!NAVIGATION_IDS.includes(sectionId)) return;
+    if (user && ["signup", "signin"].includes(sectionId)) sectionId = "account";
+    const needsRegistration = !user && !["start", "signup", "signin"].includes(sectionId);
+    if (needsRegistration) sectionId = "start";
 
     const nextHash = `#${sectionId}`;
     if (window.location.hash !== nextHash) {
@@ -251,6 +261,12 @@ function App() {
     setActiveSection(sectionId);
     setSidebarOpen(false);
     window.scrollTo(0, 0);
+    if (needsRegistration) {
+      window.requestAnimationFrame(() => {
+        document.getElementById("start-account")?.scrollIntoView({ behavior: "instant", block: "start" });
+        document.querySelector("#start-account #fullName")?.focus({ preventScroll: true });
+      });
+    }
   }
 
   const results = useMemo(() => {
@@ -329,6 +345,10 @@ function App() {
   });
 
   useEffect(() => {
+    if (!user) {
+      setProductsState("loaded");
+      return undefined;
+    }
     let active = true;
     const id = getSessionId();
     sessionRef.current = id;
@@ -386,10 +406,12 @@ function App() {
   useEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
-    const syncSectionFromLocation = () => setActiveSection(sectionFromLocation());
-    if (!window.location.hash) {
-      window.history.replaceState({ sectionId: "start" }, "", "#start");
-    }
+    const syncSectionFromLocation = () => {
+      const sectionId = currentSection();
+      if (window.location.hash !== `#${sectionId}`) window.history.replaceState({ sectionId }, "", `#${sectionId}`);
+      setActiveSection(sectionId);
+    };
+    syncSectionFromLocation();
     window.addEventListener("popstate", syncSectionFromLocation);
     window.addEventListener("hashchange", syncSectionFromLocation);
     return () => {
@@ -397,14 +419,14 @@ function App() {
       window.removeEventListener("hashchange", syncSectionFromLocation);
       window.history.scrollRestoration = previousScrollRestoration;
     };
-  }, []);
+  }, [user?.id]);
 
   useLayoutEffect(() => {
     window.scrollTo(0, 0);
   }, [activeSection]);
 
   useEffect(() => {
-    if (!initialized.current || !sessionRef.current) return undefined;
+    if (!user || !initialized.current || !sessionRef.current || accountBusy) return undefined;
     setConnection("saving");
     const timeout = window.setTimeout(() => {
       saveCalculation(sessionRef.current, normalizeCalculatorInputs(inputs))
@@ -412,7 +434,7 @@ function App() {
         .catch(() => setConnection("offline"));
     }, 500);
     return () => window.clearTimeout(timeout);
-  }, [inputs]);
+  }, [inputs, accountBusy]);
 
   const filteredProducts = useMemo(() => {
     const normalized = search.trim().toLocaleLowerCase();
@@ -675,6 +697,7 @@ function App() {
   }
 
   const connectionText = {
+    guest: "سجّل الدخول لتفعيل أدوات التسعير",
     checking: "جارٍ الاتصال",
     saving: "جارٍ حفظ الحسبة",
     connected: "الحسبة محفوظة",
@@ -695,9 +718,9 @@ function App() {
           <div><strong>التسعير الذكي للمتاجر</strong><small>Smart Pricing AI · GCC Engine</small></div>
         </a>
         <div className="sp-header-side">
-          <a className="sp-account-chip" href="#catalog" onClick={(event) => navigateTo("catalog", event)}>
+          <a className="sp-account-chip" href={user ? "#account" : "#signin"} onClick={(event) => navigateTo(user ? "account" : "signin", event)}>
             <span className="sp-account-mark"><Icon name="package" /></span>
-            <span><strong>{editor.name.trim() || "متجرك"}</strong><small>{editingId ? "منتجك الحالي" : "محاكي التسعير"}</small></span>
+            <span><strong>{user?.fullName || "دخول الحساب"}</strong><small>{user ? "بيانات حسابك" : "مساحتك المحفوظة"}</small></span>
           </a>
           <a className="sp-notice" href="#store-settings" onClick={(event) => navigateTo("store-settings", event)} aria-label="إعدادات الرسوم والعملة" title="إعدادات الرسوم والعملة">
             <Icon name="settings" /><i />
@@ -721,7 +744,7 @@ function App() {
                 {items.map(({ id, label, icon, accent }) => {
                   const isActive = activeSection === id;
                   return (
-                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}`} href={`#${id}`} aria-current={isActive ? "location" : undefined} onClick={(event) => navigateTo(id, event)}>
+                    <a key={id} className={`sp-side-link${isActive ? " is-active" : ""}${accent ? ` accent-${accent}` : ""}${!user && id !== "start" ? " is-locked" : ""}`} href={`#${id}`} title={!user && id !== "start" ? "أنشئ حسابك أولًا لاستخدام هذه الأداة" : undefined} aria-current={isActive ? "location" : undefined} onClick={(event) => navigateTo(id, event)}>
                       <Icon name={icon} /><span>{label}</span>
                     </a>
                   );
@@ -729,14 +752,27 @@ function App() {
               </nav>
             </section>
           ))}
+          <section className="sp-sidebar-group" aria-labelledby="sidebar-group-account">
+            <h2 className="sp-side-group-label" id="sidebar-group-account"><i />الحساب</h2>
+            <nav className="sp-side-nav" aria-label="الحساب">
+              {(user ? [{ id: "account", label: "حسابي" }] : [{ id: "signup", label: "إنشاء حساب" }, { id: "signin", label: "تسجيل الدخول" }]).map(({ id, label }) => (
+                <a key={id} className={`sp-side-link${activeSection === id ? " is-active" : ""}`} href={`#${id}`} aria-current={activeSection === id ? "location" : undefined} onClick={(event) => navigateTo(id, event)}><Icon name="home" /><span>{label}</span></a>
+              ))}
+              {user && <button className="sp-side-link sp-logout" type="button" onClick={onLogout} disabled={accountBusy}><Icon name="arrow" /><span>{accountBusy ? "جارٍ الخروج…" : "تسجيل الخروج"}</span></button>}
+            </nav>
+          </section>
         </div>
         <div className="sp-side-foot">
           <span className="sp-margin-icon"><Icon name="chart" /></span>
-          <div><small>{products.length ? "متوسط هامش الربح" : "هامش الحسبة الحالية"}</small><strong><bdi>{sidebarMarginText}</bdi><span>{marginHealth}</span></strong></div>
+          {user ? <div><small>{products.length ? "متوسط هامش الربح" : "هامش الحسبة الحالية"}</small><strong><bdi>{sidebarMarginText}</bdi><span>{marginHealth}</span></strong></div> : <div><small>مساحتك الخاصة</small><strong>أنشئ حسابك للبدء</strong></div>}
         </div>
       </aside>
 
-      <main className="sp-main" data-active-section={activeSection}>
+      <main className="sp-main" data-active-section={activeSection} data-authenticated={Boolean(user)}>
+        {accountError && <p className="sp-alert" role="alert">{accountError}</p>}
+        <section className="sp-section" id="account-access">
+          {["signup", "signin", "account"].includes(activeSection) && <AccountPages key={activeSection} mode={activeSection} user={user} notice={accountNotice} onAuthenticated={onAuthenticated} onUserUpdated={onUserUpdated} navigateTo={navigateTo} />}
+        </section>
         <section className="sp-section sp-hero-section" id="start">
           <div className="sp-hero-card">
             <PricingArtwork />
@@ -748,10 +784,14 @@ function App() {
               <span><Icon name="settings" /> كشف التكاليف وبوابات الدفع <Icon name="sparkles" /></span>
               <span><Icon name="package" /> سعر البيع الأمثل <Icon name="chart" /></span>
             </div>
-            <a className="sp-primary-cta" href="#calculator" onClick={(event) => navigateTo("calculator", event)}>
+            <a className="sp-primary-cta" href={user ? "#calculator" : "#start-account"} onClick={(event) => navigateTo("calculator", event)}>
               <Icon name="calculator" /><span>ابدأ التسعير الآن</span><Icon name="arrow" />
             </a>
           </div>
+          {!user && activeSection === "start" && <div className="sp-start-account" id="start-account">
+            <div className="sp-registration-heading"><h2>أدخل بياناتك وابدأ التسعير</h2><p>أنشئ حسابك مرة واحدة، أو سجّل الدخول إذا كان لديك حساب. بعدها تتفعّل لك جميع أدوات الموقع.</p></div>
+            <AccountPages mode="signup" user={null} notice={accountNotice} onAuthenticated={onAuthenticated} onUserUpdated={onUserUpdated} navigateTo={navigateTo} />
+          </div>}
         </section>
 
         <section className="sp-section" id="calculator">

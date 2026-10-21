@@ -1,6 +1,7 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import PricingCalculation from "../models/PricingCalculation.js";
+import { workspaceFilter } from "../middleware/account.js";
 import {
   calculatePricing,
   validatePricingInputs,
@@ -48,7 +49,7 @@ router.get("/calculations/:sessionId", async (req, res, next) => {
 
   try {
     const calculation = await PricingCalculation.findOne({
-      sessionId: req.params.sessionId,
+      ...workspaceFilter(req),
     }).lean();
     if (!calculation) {
       return res.status(404).json({ message: "لا يوجد حساب محفوظ بعد." });
@@ -76,7 +77,7 @@ router.put("/calculations/:sessionId", async (req, res, next) => {
   try {
     const computed = calculatePricing(values);
     const calculation = await PricingCalculation.findOneAndUpdate(
-      { sessionId: req.params.sessionId },
+      workspaceFilter(req),
       { $set: { ...values, ...computed } },
       {
         new: true,

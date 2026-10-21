@@ -1,0 +1,78 @@
+/* Targeted refinements only: preserve the original screens and logo artwork. */
+.sp-hero-artwork {
+  width: clamp(96px, 10vw, 116px);
+  height: clamp(96px, 10vw, 116px);
+  margin-block: 9px 17px;
+  transition: transform .28s cubic-bezier(.2,.75,.25,1);
+  animation: sp-logo-entrance .72s cubic-bezier(.2,.75,.25,1) both;
+}
+.sp-art-frame {
+  width: 100%;
+  height: 100%;
+}
+.sp-art-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.sp-hero-artwork:hover,.sp-hero-artwork:focus-visible { transform: translateY(-2px) scale(1.035); }
+.sp-hero-artwork:active { transform: scale(.995); }
+@keyframes sp-logo-entrance {
+  from { opacity: 0; transform: scale(.88); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 1000px) {
+  .sp-heading,.sp-catalog-top { align-items: flex-start; flex-wrap: wrap; }
+  .sp-heading-actions,.sp-catalog-actions { width: 100%; }
+  .sp-heading-actions .sp-button,.sp-catalog-actions .sp-button { flex: 1 1 auto; }
+  .sp-workspace,.sp-editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .sp-editor-summary { position: static; }
+  .sp-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sp-table-wrap { max-width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+  .sp-table { min-width: 760px; }
+  .sp-print-table { min-width: 0; }
+}
+@media (max-width: 760px) {
+  .sp-section { padding-block: 26px 38px; }
+  .sp-heading { gap: 13px; }
+  .sp-heading-main { min-width: 0; align-items: flex-start; }
+  .sp-heading-actions .sp-button { min-width: 0; }
+  .sp-catalog-top { gap: 14px; }
+  .sp-section-intro { align-items: flex-start; flex-direction: column; }
+  .sp-context-meta { width: 100%; }
+  .sp-context-meta span { max-width: 100%; overflow-wrap: anywhere; }
+  .sp-hero-artwork { width: 104px; height: 104px; }
+  .sp-art-frame { width: 100%; height: 100%; }
+  .sp-side-nav { grid-template-columns: minmax(0, 1fr); }
+  .sp-sidebar { gap: 12px; }
+  .sp-sidebar-content { max-height: calc(100dvh - 190px); overflow-y: auto; }
+  .sp-product-card-actions { flex-wrap: wrap; }
+  .sp-product-card-actions .sp-button { flex: 1 1 130px; }
+}
+@media (max-width: 480px) {
+  .sp-main { padding-inline: 10px; }
+  .sp-section { padding-block: 21px 30px; }
+  .sp-heading-main { gap: 9px; }
+  .sp-title-icon { width: 36px; height: 36px; }
+  .sp-heading-actions { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .sp-heading-actions .sp-button { width: 100%; }
+  .sp-kpis { grid-template-columns: minmax(0, 1fr); }
+  .sp-kpi { min-height: 82px; }
+  .sp-custom-row { grid-template-columns: minmax(0, 1fr) 82px 38px; }
+  .sp-default-payment-row { grid-template-columns: minmax(0, 1fr); }
+  .sp-discount-results { grid-template-columns: minmax(0, 1fr); }
+  .sp-compare-stats { grid-template-columns: minmax(0, 1fr); gap: 9px; }
+  .sp-compare-stats > div + div { padding: 9px 0 0; border-top: 1px solid #e9edf2; border-right: 0; }
+  .sp-compare-stats > div { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .sp-price-card,.sp-form-card,.sp-compare-card,.sp-editor-panel { padding: 16px; }
+  .sp-hero-artwork { width: 96px; height: 96px; }
+  .sp-art-frame { width: 100%; height: 100%; }
+  .sp-hero-card h1 { overflow-wrap: anywhere; }
+  .sp-benefits span { white-space: normal; }
+  .sp-pagination { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sp-hero-artwork { animation: none !important; transition: none !important; }
+  .sp-hero-artwork:hover,.sp-hero-artwork:focus-visible,.sp-hero-artwork:active { transform: none; }
+}

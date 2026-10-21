@@ -1,2 +1,3 @@
 - [Reference fidelity](reference-fidelity.md) — Match the supplied screenshot artwork rather than substituting a similar logo; sidebar additions stay within existing functions.
 - [Browser test availability](browser-test-availability.md) — Testing guidance may outpace the available callback; isolated Chromium and native Node CDP are a fallback.
+- [Preview cookie behavior](preview-cookie-behavior.md) — Embedded preview may rewrite SameSite cookies; retain explicit CSRF checks and test proxy behavior separately.

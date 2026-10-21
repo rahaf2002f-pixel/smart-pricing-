@@ -6,6 +6,8 @@ import pricingRoutes from "./routes/pricing.routes.js";
 import productsRoutes from "./routes/products.routes.js";
 import settingsRoutes from "./routes/settings.routes.js";
 import adviceRoutes from "./routes/advice.routes.js";
+import authRoutes from "./routes/auth.routes.js";
+import { loadAccount, protectWorkspace, sameOriginOnly } from "./middleware/account.js";
 
 const app = express();
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
@@ -13,6 +15,7 @@ const clientDirectory = resolve(currentDirectory, "../../client");
 const productionAssets = resolve(clientDirectory, "dist");
 
 app.disable("x-powered-by");
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "16kb" }));
 app.get("/api/health", (_req, res) => {
   const databaseConnected = mongoose.connection.readyState === 1;
@@ -21,7 +24,9 @@ app.get("/api/health", (_req, res) => {
     database: databaseConnected ? "connected" : "disconnected",
   });
 });
-app.use("/api/pricing", pricingRoutes);
+app.use("/api", sameOriginOnly, loadAccount);
+app.use("/api/auth", authRoutes);
+app.use("/api/pricing", protectWorkspace, pricingRoutes);
 app.use("/api/pricing/settings", settingsRoutes);
 app.use("/api/pricing/advice", adviceRoutes);
 app.use("/api/pricing/products", productsRoutes);
@@ -41,7 +46,7 @@ app.use((error, _req, res, _next) => {
   if (error?.type === "entity.parse.failed") {
     return res.status(400).json({ message: "صيغة البيانات المرسلة غير صحيحة." });
   }
-  console.error("Request failed:", error.message);
+  console.error("Request failed:", error.name, error.code ?? "");
   return res.status(500).json({ message: "حدث خطأ أثناء معالجة الطلب." });
 });
 

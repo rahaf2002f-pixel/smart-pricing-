@@ -10,6 +10,7 @@ const customCostSchema = new mongoose.Schema(
 
 const pricingProductSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, immutable: true, index: true },
     sessionId: { type: String, required: true, immutable: true, index: true },
     name: { type: String, required: true, trim: true, maxlength: 120 },
     sku: { type: String, default: "", trim: true, maxlength: 40 },

@@ -22,8 +22,18 @@ the frontend.
   `OPENROUTER_API_KEY` in Replit Secrets to enable this optional feature.
 - Compare selling prices and save, edit, search, filter, and delete the current
   browser session's products. Export the catalog as CSV or print it to PDF.
-- The app remains anonymous: each browser session stores its calculation and
-  product catalog separately. There are no accounts or shared store profiles.
+- Registration is shown below the homepage introduction. A visitor must register
+  or sign in before using pricing tools; enforce this on the server as well as
+  in navigation. Completed accounts never repeat registration.
+- Register with full name, email, and password; MongoDB
+  stores a unique normalized email, salted scrypt hash and completed-profile state.
+  Account details are entered once; later logins show the saved profile, with
+  explicit editing available. Product entry forms must remain available normally.
+- Account calculations, settings and products are owned by the authenticated User
+  ID, resolved by the server. Legacy anonymous records remain untouched in MongoDB
+  and are not automatically imported into an account.
+- Sessions use HttpOnly cookies and hashed tokens in MongoDB, with a seven-day
+  expiry. Passwords and authentication tokens must never be logged.
 
 ## MongoDB configuration
 
@@ -45,6 +55,12 @@ saving/restoring them is unavailable.
 - `POST /api/pricing/products/:sessionId`
 - `PUT /api/pricing/products/:sessionId/:productId`
 - `DELETE /api/pricing/products/:sessionId/:productId`
+- `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/logout`
+- `GET /api/auth/me`, `PATCH /api/auth/profile`
+
+Run `node scripts/verify-accounts.mjs` against the development app for real Atlas
+account/isolation checks. It creates uniquely named test accounts and cleans up
+only its own records.
 
 ## OpenRouter configuration
 

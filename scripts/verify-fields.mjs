@@ -1,7 +1,14 @@
 // Run against a development app with an isolated Chromium debugging session on 9225.
 // Uses only Node built-ins; creates/deletes only its own test product.
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
+import "dotenv/config";
+import mongoose from "mongoose";
+import User from "../server/src/models/User.js";
+import AuthSession from "../server/src/models/AuthSession.js";
+import PricingProduct from "../server/src/models/PricingProduct.js";
+import PricingCalculation from "../server/src/models/PricingCalculation.js";
+import PricingSettings from "../server/src/models/PricingSettings.js";
 
 const pages = await (await fetch("http://127.0.0.1:9225/json/list")).json();
 const socket = new WebSocket(pages.find((page) => page.type === "page").webSocketDebuggerUrl);
@@ -68,24 +75,51 @@ async function check(name, task) {
   catch (error) { checks.push({ name, pass: false, error: error.message }); console.log("FAIL", name, error.message); }
 }
 const name = `اختبار الخانات ${randomUUID().slice(0, 8)}`;
+const testEmail = `sp-fields-${randomUUID()}@example.invalid`;
+async function cleanupTestAccount() {
+  await mongoose.connect(process.env.MONGODB_URI);
+  const account = await User.findOne({ email: testEmail });
+  if (account) {
+    await Promise.all([AuthSession, PricingProduct, PricingCalculation, PricingSettings].map((model) => model.deleteMany({ userId: account._id })));
+    await User.deleteOne({ _id: account._id });
+  }
+  await mongoose.disconnect();
+}
 let productId;
 await send("Page.enable");
 await send("Runtime.enable");
+await send("Network.enable");
+await send("Network.clearBrowserCookies");
 await send("Emulation.setDeviceMetricsOverride", { width: 1024, height: 819, deviceScaleFactor: 1, mobile: false });
 await send("Page.navigate", { url: `https://${process.env.REPLIT_DEV_DOMAIN}/` });
+try {
+  await waitFor(`document.querySelector(".spa-form")`);
+  const password = randomBytes(24).toString("base64url");
+  const result = await evaluate(`fetch("/api/auth/register", {method:"POST",headers:{"Content-Type":"application/json","X-Smart-Pricing":"1"},body:JSON.stringify(${JSON.stringify({fullName:"حساب اختبار الخانات",email:testEmail,password,confirmPassword:password})})}).then(r=>r.status)`);
+  assert.equal(result, 201);
+  await evaluate(`window.__spFieldsReload=true`);
+  await send("Page.reload");
+  await pause(400);
+  await waitFor(`!window.__spFieldsReload && document.querySelector(".sp-logout")`);
+} catch (error) {
+  await cleanupTestAccount();
+  socket.close();
+  throw error;
+}
 await waitFor(`document.querySelector(".connection-connected") && document.querySelector("#product-name")`);
 const session = await evaluate(`localStorage.getItem("smart-pricing-calculation-id")`);
 const api = async (path, options) => evaluate(`fetch(${JSON.stringify(path)}, ${JSON.stringify(options)}).then(async r => ({status:r.status, body:await r.json()}))`);
 const productsPath = `/api/pricing/products/${session}`;
 const getProducts = async () => (await api(productsPath)).body.products;
 try {
-  await check("All eight sidebar destinations and current-section indicators", async () => {
-    const ids = await evaluate(`[...document.querySelectorAll(".sp-sidebar .sp-side-link")].map(a => a.hash.slice(1))`);
-    assert.equal(ids.length, 8);
+  await check("All sidebar destinations and current-section indicators", async () => {
+    const ids = await evaluate(`[...document.querySelectorAll(".sp-sidebar a.sp-side-link")].map(a => a.hash.slice(1))`);
+    assert.equal(ids.length, 9);
     const parents = {
       start: "start", calculator: "calculator", "market-comparison": "calculator",
       details: "details", "store-settings": "details", "payment-settings": "details",
       "ai-advice": "details", catalog: "catalog",
+      account: "account-access",
     };
     for (const id of ids) {
       await click(`.sp-sidebar a[href="#${id}"]`);
@@ -107,9 +141,9 @@ try {
       assert(destinationVisible, `subpage contents for ${id}`);
     }
     await evaluate(`window.history.back()`);
-    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="store-settings"`);
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection===${JSON.stringify(ids.at(-2))}`);
     await evaluate(`window.history.forward()`);
-    await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="payment-settings"`);
+    await waitFor(`document.querySelector(".sp-main").dataset.activeSection===${JSON.stringify(ids.at(-1))}`);
     await click('.sp-sidebar a[href="#start"]');
     await click(".sp-primary-cta");
     await waitFor(`document.querySelector(".sp-main").dataset.activeSection==="calculator"`);
@@ -290,10 +324,9 @@ try {
     assert(!(await getProducts()).some((item) => item.name === name));
   });
 } finally {
-  // Always remove only this run's test products, even when a UI assertion failed.
-  for (const product of (await getProducts()).filter((item) => item.name === name)) {
-    await api(`${productsPath}/${product.id}`, { method: "DELETE" });
-  }
+  // All data belongs to this run's isolated test account.
+  await cleanupTestAccount();
+  await send("Network.clearBrowserCookies");
   socket.close();
 }
 console.log(JSON.stringify({ checks, browserExceptions: exceptions }, null, 2));

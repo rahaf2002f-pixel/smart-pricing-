@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const pricingCalculationSchema = new mongoose.Schema(
   {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null, immutable: true, index: true },
     sessionId: {
       type: String,
       required: true,

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import PricingProduct from "../models/PricingProduct.js";
+import { workspaceFilter } from "../middleware/account.js";
 import {
   calculateProductPricing,
   validateProductInput,
@@ -61,7 +62,7 @@ function parseProduct(body) {
 router.get("/:sessionId", async (req, res, next) => {
   if (!validSession(req, res) || !requireDatabase(res)) return;
   try {
-    const products = await PricingProduct.find({ sessionId: req.params.sessionId })
+    const products = await PricingProduct.find(workspaceFilter(req))
       .sort({ updatedAt: -1 })
       .lean();
     return res.json({ products: products.map(serialize) });
@@ -79,7 +80,7 @@ router.post("/:sessionId", async (req, res, next) => {
 
   try {
     const product = await PricingProduct.create({
-      sessionId: req.params.sessionId,
+      ...workspaceFilter(req),
       ...values,
       ...computed,
     });
@@ -101,7 +102,7 @@ router.put("/:sessionId/:productId", async (req, res, next) => {
 
   try {
     const product = await PricingProduct.findOneAndUpdate(
-      { _id: req.params.productId, sessionId: req.params.sessionId },
+      { _id: req.params.productId, ...workspaceFilter(req) },
       { $set: { ...values, ...computed } },
       { new: true, runValidators: true },
     ).lean();
@@ -121,7 +122,7 @@ router.delete("/:sessionId/:productId", async (req, res, next) => {
   try {
     const result = await PricingProduct.deleteOne({
       _id: req.params.productId,
-      sessionId: req.params.sessionId,
+      ...workspaceFilter(req),
     });
     if (result.deletedCount === 0) return res.status(404).json({ message: "المنتج غير موجود." });
     return res.json({ deleted: true });

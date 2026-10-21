@@ -1,6 +1,7 @@
 import { Router } from "express";
 import mongoose from "mongoose";
 import PricingSettings from "../models/PricingSettings.js";
+import { workspaceFilter } from "../middleware/account.js";
 
 const router = Router();
 const SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -33,7 +34,7 @@ function serialize(settings) {
 router.get("/:sessionId", async (req, res, next) => {
   if (!validSession(req, res) || !databaseReady(res)) return;
   try {
-    const settings = await PricingSettings.findOne({ sessionId: req.params.sessionId }).lean();
+    const settings = await PricingSettings.findOne(workspaceFilter(req)).lean();
     return res.json({ settings: settings ? serialize(settings) : EMPTY_SETTINGS });
   } catch (error) {
     return next(error);
@@ -64,7 +65,7 @@ router.put("/:sessionId", async (req, res, next) => {
 
   try {
     const settings = await PricingSettings.findOneAndUpdate(
-      { sessionId: req.params.sessionId },
+      workspaceFilter(req),
       { $set: { defaultDeliveryFee, defaultPaymentFee, defaultPaymentFeeType } },
       { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true },
     ).lean();
