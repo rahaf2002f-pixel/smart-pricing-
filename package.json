@@ -5,6 +5,7 @@
   "description": "Smart Pricing AI MVP for small online stores",
   "scripts": {
     "dev": "node server/src/server.js",
+    "prebuild": "node scripts/check-registry.mjs",
     "build": "vite build --config client/vite.config.js",
     "start": "NODE_ENV=production node server/src/server.js",
     "test": "node --test server/src/services/*.test.js client/src/calculatorInputs.test.js"

@@ -1,0 +1,26 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+
+const files = ["package.json", "package-lock.json", "pnpm-lock.yaml", ".npmrc"];
+const contents = Object.fromEntries(await Promise.all(files.map(async file =>
+  [file, await readFile(new URL(`../${file}`, import.meta.url), "utf8")]
+)));
+for (const [file, text] of Object.entries(contents)) {
+  assert(!/https?:\/\/[^\s"']*(?:\.internal|localhost|127\.0\.0\.1)(?:[/:]|$)/i.test(text),
+    `${file} contains a private package URL. Keep deployment dependencies portable.`);
+}
+const lock = JSON.parse(contents["package-lock.json"]);
+const manifest = JSON.parse(contents["package.json"]);
+assert.deepEqual(lock.packages[""].dependencies, manifest.dependencies,
+  "package.json and package-lock.json dependencies must match.");
+let count = 0;
+for (const [name, entry] of Object.entries(lock.packages)) {
+  if (!entry.resolved) continue;
+  const url = new URL(entry.resolved);
+  assert(url.origin === "https://registry.npmjs.org" && !url.username && !url.password,
+    `Non-public registry in locked package: ${name}`);
+  count++;
+}
+assert(/^\s*registry\s*=\s*https:\/\/registry\.npmjs\.org\/?\s*$/m.test(contents[".npmrc"]),
+  "The project npm registry must be https://registry.npmjs.org/.");
+console.log(`Registry check passed: ${count} locked tarballs use the official npm registry.`);

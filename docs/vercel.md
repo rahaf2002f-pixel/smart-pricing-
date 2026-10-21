@@ -7,11 +7,15 @@ Use the repository root (the directory containing `package.json` and
 | Setting | Value |
 | --- | --- |
 | Framework Preset | Vite |
-| Install Command | `npm ci` |
+| Install Command | `npm ci --registry=https://registry.npmjs.org/` |
 | Build Command | `npm run build` |
 | Output Directory | `client/dist` |
 
 Vite intentionally builds into `client/dist`, configured in `client/vite.config.js`.
+The npm lockfile keeps exact versions and integrity hashes but uses public npm
+tarball URLs. Retain both lockfiles: Vercel explicitly uses npm, while pnpm's
+integrity-only lockfile remains usable with the project `.npmrc`. The prebuild
+registry check rejects private registry URLs before building.
 There is no root-level `dist`. Keep that path consistent with the standalone
 Express production server, which also serves `client/dist`.
 

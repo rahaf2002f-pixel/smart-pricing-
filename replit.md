@@ -38,7 +38,11 @@ the frontend.
 ## Vercel
 
 - Deploy from the repository root using `vercel.json`: `npm run build` outputs
-  `client/dist` (not root `dist`); `npm ci` is the install command.
+  `client/dist` (not root `dist`); install with
+  `npm ci --registry=https://registry.npmjs.org/`.
+- Keep committed lockfiles portable: exact versions and integrity hashes stay
+  locked, but tarball URLs must use the public npm registry. The prebuild check
+  guards this; do not commit environment-private package download URLs.
 - Keep Replit's existing Express/Vite workflow unchanged. Vercel uses
   `api/handler.js` with cached MongoDB initialization and the existing Express
   routes. See `docs/vercel.md` for private environment setup and verification.
