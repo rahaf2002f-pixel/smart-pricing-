@@ -35,6 +35,14 @@ the frontend.
 - Sessions use HttpOnly cookies and hashed tokens in MongoDB, with a seven-day
   expiry. Passwords and authentication tokens must never be logged.
 
+## Vercel
+
+- Deploy from the repository root using `vercel.json`: `npm run build` outputs
+  `client/dist` (not root `dist`); `npm ci` is the install command.
+- Keep Replit's existing Express/Vite workflow unchanged. Vercel uses
+  `api/handler.js` with cached MongoDB initialization and the existing Express
+  routes. See `docs/vercel.md` for private environment setup and verification.
+
 ## Languages
 
 - Visual refinements keep the original logo and navy/mint palette. Account-entry
